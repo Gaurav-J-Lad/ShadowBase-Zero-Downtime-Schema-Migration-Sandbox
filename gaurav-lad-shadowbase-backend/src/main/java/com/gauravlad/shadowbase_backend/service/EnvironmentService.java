@@ -2,6 +2,7 @@ package com.gauravlad.shadowbase_backend.service;
 
 import com.gauravlad.shadowbase_backend.dto.CreateEnvironmentRequest;
 import com.gauravlad.shadowbase_backend.entity.Environment;
+import com.gauravlad.shadowbase_backend.environment.ShadowDatabaseManager;
 import com.gauravlad.shadowbase_backend.repository.EnvironmentRepository;
 import org.springframework.stereotype.Service;
 
@@ -12,9 +13,14 @@ import java.util.List;
 public class EnvironmentService {
 
     private final EnvironmentRepository environmentRepository;
+    private final ShadowDatabaseManager shadowDatabaseManager;
 
-    public EnvironmentService(EnvironmentRepository environmentRepository) {
+    public EnvironmentService(
+            EnvironmentRepository environmentRepository,
+            ShadowDatabaseManager shadowDatabaseManager) {
+
         this.environmentRepository = environmentRepository;
+        this.shadowDatabaseManager = shadowDatabaseManager;
     }
 
     public Environment createEnvironment(CreateEnvironmentRequest request) {
@@ -23,11 +29,26 @@ public class EnvironmentService {
                 .name(request.name())
                 .databaseType(request.databaseType())
                 .databaseVersion(request.databaseVersion())
-                .status("CREATED")
+                .status("CREATING")
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return environmentRepository.save(environment);
+        environment = environmentRepository.save(environment);
+
+        if ("POSTGRESQL".equalsIgnoreCase(request.databaseType())) {
+
+            var container = shadowDatabaseManager.createPostgresContainer(
+                    environment.getId(),
+                    request.databaseVersion()
+            );
+
+            environment.setContainerId(container.getContainerId());
+            environment.setStatus("RUNNING");
+
+            environment = environmentRepository.save(environment);
+        }
+
+        return environment;
     }
 
     public List<Environment> getAllEnvironments() {
