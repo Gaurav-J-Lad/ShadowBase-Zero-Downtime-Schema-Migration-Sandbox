@@ -1,5 +1,6 @@
 package com.gauravlad.shadowbase_backend.environment;
 
+import com.gauravlad.shadowbase_backend.dto.ShadowDatabaseConnection;
 import org.springframework.stereotype.Component;
 import org.testcontainers.containers.PostgreSQLContainer;
 
@@ -41,5 +42,61 @@ public class ShadowDatabaseManager {
         if (container != null) {
             container.stop();
         }
+    }
+
+    public String getJdbcUrl(Long environmentId) {
+
+        PostgreSQLContainer<?> container =
+                getContainer(environmentId);
+
+        if (container == null) {
+            throw new RuntimeException(
+                    "Container not found for environment: " + environmentId);
+        }
+
+        return container.getJdbcUrl();
+    }
+
+    public String getUsername(Long environmentId) {
+
+        PostgreSQLContainer<?> container =
+                getContainer(environmentId);
+
+        if (container == null) {
+            throw new RuntimeException(
+                    "Container not found for environment: " + environmentId);
+        }
+
+        return container.getUsername();
+    }
+
+    public String getPassword(Long environmentId) {
+
+        PostgreSQLContainer<?> container =
+                getContainer(environmentId);
+
+        if (container == null) {
+            throw new RuntimeException(
+                    "Container not found for environment: " + environmentId);
+        }
+
+        return container.getPassword();
+    }
+
+    public ShadowDatabaseConnection getConnectionDetails(Long environmentId) {
+
+        PostgreSQLContainer<?> container =
+                getContainer(environmentId);
+
+        if (container == null) {
+            throw new RuntimeException(
+                    "Container not found for environment: " + environmentId);
+        }
+
+        return new ShadowDatabaseConnection(
+                container.getJdbcUrl(),
+                container.getUsername(),
+                container.getPassword()
+        );
     }
 }

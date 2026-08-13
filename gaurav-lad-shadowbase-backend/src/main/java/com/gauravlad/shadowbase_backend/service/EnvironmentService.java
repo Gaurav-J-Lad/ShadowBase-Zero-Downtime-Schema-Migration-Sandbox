@@ -56,13 +56,23 @@ public class EnvironmentService {
     }
 
     public Environment getEnvironmentById(Long id) {
+
         return environmentRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Environment not found with id: " + id));
+                        new RuntimeException(
+                                "Environment not found with id: " + id));
     }
 
     public void deleteEnvironment(Long id) {
+
         Environment environment = getEnvironmentById(id);
+
+        // Stop the Docker container before deleting the environment
+        if (environment.getContainerId() != null) {
+            shadowDatabaseManager.stopContainer(id);
+        }
+
+        // Delete the environment record from PostgreSQL
         environmentRepository.delete(environment);
     }
 }
