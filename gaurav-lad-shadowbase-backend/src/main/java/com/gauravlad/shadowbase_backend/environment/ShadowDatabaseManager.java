@@ -21,7 +21,8 @@ public class ShadowDatabaseManager {
                 new PostgreSQLContainer<>("postgres:" + version)
                         .withDatabaseName("shadowdb")
                         .withUsername("postgres")
-                        .withPassword("postgres");
+                        .withPassword("postgres")
+                        .withEnv("TZ", "Asia/Kolkata");
 
         container.start();
 
@@ -98,5 +99,22 @@ public class ShadowDatabaseManager {
                 container.getUsername(),
                 container.getPassword()
         );
+    }
+
+    public boolean verifyConnection(Long environmentId) {
+
+        PostgreSQLContainer<?> container = getContainer(environmentId);
+
+        if (container == null) {
+            return false;
+        }
+
+        try (var connection = container.createConnection("")) {
+
+            return connection.isValid(5);
+
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

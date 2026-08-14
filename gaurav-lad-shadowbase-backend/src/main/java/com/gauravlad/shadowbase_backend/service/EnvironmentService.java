@@ -3,6 +3,7 @@ package com.gauravlad.shadowbase_backend.service;
 import com.gauravlad.shadowbase_backend.dto.CreateEnvironmentRequest;
 import com.gauravlad.shadowbase_backend.entity.Environment;
 import com.gauravlad.shadowbase_backend.environment.ShadowDatabaseManager;
+import com.gauravlad.shadowbase_backend.environment.ShadowDatabaseSchemaInitializer;
 import com.gauravlad.shadowbase_backend.repository.EnvironmentRepository;
 import org.springframework.stereotype.Service;
 
@@ -14,13 +15,16 @@ public class EnvironmentService {
 
     private final EnvironmentRepository environmentRepository;
     private final ShadowDatabaseManager shadowDatabaseManager;
+    private final ShadowDatabaseSchemaInitializer schemaInitializer;
 
     public EnvironmentService(
             EnvironmentRepository environmentRepository,
-            ShadowDatabaseManager shadowDatabaseManager) {
+            ShadowDatabaseManager shadowDatabaseManager,
+            ShadowDatabaseSchemaInitializer schemaInitializer) {
 
         this.environmentRepository = environmentRepository;
         this.shadowDatabaseManager = shadowDatabaseManager;
+        this.schemaInitializer = schemaInitializer;
     }
 
     public Environment createEnvironment(CreateEnvironmentRequest request) {
@@ -41,7 +45,7 @@ public class EnvironmentService {
                     environment.getId(),
                     request.databaseVersion()
             );
-
+            schemaInitializer.initialize(container);
             environment.setContainerId(container.getContainerId());
             environment.setStatus("RUNNING");
 

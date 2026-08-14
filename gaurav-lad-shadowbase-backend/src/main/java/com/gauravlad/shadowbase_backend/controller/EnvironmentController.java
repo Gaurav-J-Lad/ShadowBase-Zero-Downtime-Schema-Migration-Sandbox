@@ -1,6 +1,7 @@
 package com.gauravlad.shadowbase_backend.controller;
 import com.gauravlad.shadowbase_backend.dto.CreateEnvironmentRequest;
 import com.gauravlad.shadowbase_backend.entity.Environment;
+import com.gauravlad.shadowbase_backend.environment.ShadowDatabaseManager;
 import com.gauravlad.shadowbase_backend.service.EnvironmentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -13,9 +14,14 @@ import java.util.List;
 public class EnvironmentController {
 
     private final EnvironmentService environmentService;
+    private final ShadowDatabaseManager shadowDatabaseManager;
 
-    public EnvironmentController(EnvironmentService environmentService) {
+    public EnvironmentController(
+            EnvironmentService environmentService,
+            ShadowDatabaseManager shadowDatabaseManager) {
+
         this.environmentService = environmentService;
+        this.shadowDatabaseManager = shadowDatabaseManager;
     }
 
     @PostMapping
@@ -40,5 +46,15 @@ public class EnvironmentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteEnvironment(@PathVariable Long id) {
         environmentService.deleteEnvironment(id);
+    }
+
+    @GetMapping("/{id}/connection")
+    public String verifyConnection(@PathVariable Long id) {
+
+        boolean connected = shadowDatabaseManager.verifyConnection(id);
+
+        return connected
+                ? "Shadow database connection successful"
+                : "Shadow database connection failed";
     }
 }
