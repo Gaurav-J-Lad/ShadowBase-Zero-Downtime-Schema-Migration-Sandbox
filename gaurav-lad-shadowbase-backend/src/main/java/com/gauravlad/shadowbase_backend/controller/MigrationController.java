@@ -38,4 +38,10 @@ public class MigrationController {
 
         return migrationService.getMigrationById(id);
     }
+
+    @PostMapping("/{id}/execute")
+    public Migration executeMigration(@PathVariable Long id) {
+
+        return migrationService.executeMigration(id);
+    }
 }
