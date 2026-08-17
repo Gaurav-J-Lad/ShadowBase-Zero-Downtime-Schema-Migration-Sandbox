@@ -2,6 +2,7 @@ package com.gauravlad.shadowbase_backend.controller;
 
 import com.gauravlad.shadowbase_backend.dto.CreateMigrationRequest;
 import com.gauravlad.shadowbase_backend.entity.Migration;
+import com.gauravlad.shadowbase_backend.entity.MigrationExecution;
 import com.gauravlad.shadowbase_backend.service.MigrationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -43,5 +44,12 @@ public class MigrationController {
     public Migration executeMigration(@PathVariable Long id) {
 
         return migrationService.executeMigration(id);
+    }
+
+    @GetMapping("/{id}/history")
+    public List<MigrationExecution> getExecutionHistory(
+            @PathVariable Long id) {
+
+        return migrationService.getExecutionHistory(id);
     }
 }

@@ -3,8 +3,10 @@ package com.gauravlad.shadowbase_backend.service;
 import com.gauravlad.shadowbase_backend.dto.CreateMigrationRequest;
 import com.gauravlad.shadowbase_backend.entity.Environment;
 import com.gauravlad.shadowbase_backend.entity.Migration;
+import com.gauravlad.shadowbase_backend.entity.MigrationExecution;
 import com.gauravlad.shadowbase_backend.environment.ShadowDatabaseManager;
 import com.gauravlad.shadowbase_backend.repository.EnvironmentRepository;
+import com.gauravlad.shadowbase_backend.repository.MigrationExecutionRepository;
 import com.gauravlad.shadowbase_backend.repository.MigrationRepository;
 import org.springframework.stereotype.Service;
 
@@ -19,15 +21,18 @@ public class MigrationService {
     private final MigrationRepository migrationRepository;
     private final EnvironmentRepository environmentRepository;
     private final ShadowDatabaseManager shadowDatabaseManager;
+    private final MigrationExecutionRepository migrationExecutionRepository;
 
     public MigrationService(
             MigrationRepository migrationRepository,
             EnvironmentRepository environmentRepository,
-            ShadowDatabaseManager shadowDatabaseManager) {
+            ShadowDatabaseManager shadowDatabaseManager,
+            MigrationExecutionRepository migrationExecutionRepository) {
 
         this.migrationRepository = migrationRepository;
         this.environmentRepository = environmentRepository;
         this.shadowDatabaseManager = shadowDatabaseManager;
+        this.migrationExecutionRepository = migrationExecutionRepository;
     }
 
     public Migration createMigration(CreateMigrationRequest request) {
@@ -66,7 +71,6 @@ public class MigrationService {
                         new RuntimeException(
                                 "Migration not found with id: " + id));
     }
-
     public Migration executeMigration(Long id) {
 
         Migration migration = getMigrationById(id);
@@ -76,8 +80,24 @@ public class MigrationService {
         var container = shadowDatabaseManager.getContainer(environmentId);
 
         if (container == null || !container.isRunning()) {
-            throw new RuntimeException(
-                    "Shadow database container is not running");
+
+            String errorMessage = "Shadow database container is not running";
+            LocalDateTime executedAt = LocalDateTime.now();
+
+            migration.setStatus("FAILED");
+            migration.setErrorMessage(errorMessage);
+            migration.setExecutedAt(executedAt);
+
+            MigrationExecution execution = MigrationExecution.builder()
+                    .migration(migration)
+                    .status("FAILED")
+                    .errorMessage(errorMessage)
+                    .executedAt(executedAt)
+                    .build();
+
+            migrationExecutionRepository.save(execution);
+
+            return migrationRepository.save(migration);
         }
 
         try (Connection connection = container.createConnection("");
@@ -86,17 +106,44 @@ public class MigrationService {
             statement.execute(migration.getSqlScript());
 
             migration.setStatus("SUCCESS");
+            migration.setErrorMessage(null);
             migration.setExecutedAt(LocalDateTime.now());
 
+            MigrationExecution execution = MigrationExecution.builder()
+                    .migration(migration)
+                    .status("SUCCESS")
+                    .errorMessage(null)
+                    .executedAt(LocalDateTime.now())
+                    .build();
+
+            migrationExecutionRepository.save(execution);
         } catch (Exception e) {
 
             migration.setStatus("FAILED");
             migration.setErrorMessage(e.getMessage());
+            migration.setExecutedAt(LocalDateTime.now());
 
-            throw new RuntimeException(
-                    "Migration execution failed", e);
+            MigrationExecution execution = MigrationExecution.builder()
+                    .migration(migration)
+                    .status("FAILED")
+                    .errorMessage(e.getMessage())
+                    .executedAt(LocalDateTime.now())
+                    .build();
+
+            migrationExecutionRepository.save(execution);
         }
 
         return migrationRepository.save(migration);
+    }
+
+    public List<MigrationExecution> getExecutionHistory(Long migrationId) {
+
+        if (!migrationRepository.existsById(migrationId)) {
+            throw new RuntimeException(
+                    "Migration not found with id: " + migrationId);
+        }
+
+        return migrationExecutionRepository
+                .findByMigrationIdOrderByExecutedAtDesc(migrationId);
     }
 }
