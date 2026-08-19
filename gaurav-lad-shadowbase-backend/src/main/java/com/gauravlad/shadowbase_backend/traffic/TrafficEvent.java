@@ -15,9 +15,9 @@ public class TrafficEvent {
 
     private Long environmentId;
 
-    private String operation;
+    private String operationType;
 
     private String sql;
 
-    private LocalDateTime timestamp;
+    private LocalDateTime createdAt;
 }
