@@ -3,6 +3,7 @@ package com.gauravlad.shadowbase_backend.service;
 import com.gauravlad.shadowbase_backend.dto.TrafficReplayResult;
 import com.gauravlad.shadowbase_backend.environment.ShadowDatabaseManager;
 import com.gauravlad.shadowbase_backend.repository.EnvironmentRepository;
+import com.gauravlad.shadowbase_backend.traffic.TrafficEvent;
 import org.springframework.stereotype.Service;
 
 import java.sql.Connection;
@@ -32,7 +33,13 @@ public class TrafficReplayService {
 
         if (!environmentRepository.existsById(environmentId)) {
             throw new RuntimeException(
-                    "Environment not found with id: " + environmentId);
+                    "Environment not found with id: "
+                            + environmentId);
+        }
+
+        if (count <= 0) {
+            throw new IllegalArgumentException(
+                    "Traffic count must be greater than zero");
         }
 
         var container =
@@ -41,7 +48,8 @@ public class TrafficReplayService {
         if (container == null || !container.isRunning()) {
             throw new RuntimeException(
                     "Shadow database container is not running "
-                            + "for environment: " + environmentId);
+                            + "for environment: "
+                            + environmentId);
         }
 
         List<TrafficEvent> events =
@@ -53,10 +61,13 @@ public class TrafficReplayService {
         int failedEvents = 0;
         long totalExecutionTimeMs = 0;
 
-        try (Connection connection =
-                     container.createConnection("");
-             Statement statement =
-                     connection.createStatement()) {
+        try (
+                Connection connection =
+                        container.createConnection("");
+
+                Statement statement =
+                        connection.createStatement()
+        ) {
 
             for (TrafficEvent event : events) {
 
@@ -68,25 +79,29 @@ public class TrafficReplayService {
                     statement.execute(event.getSql());
 
                     long executionTime =
-                            System.currentTimeMillis() - startTime;
+                            System.currentTimeMillis()
+                                    - startTime;
 
                     event.setStatus("SUCCESS");
                     event.setExecutionTimeMs(executionTime);
                     event.setErrorMessage(null);
 
                     successfulEvents++;
+
                     totalExecutionTimeMs += executionTime;
 
                 } catch (Exception e) {
 
                     long executionTime =
-                            System.currentTimeMillis() - startTime;
+                            System.currentTimeMillis()
+                                    - startTime;
 
                     event.setStatus("FAILED");
                     event.setExecutionTimeMs(executionTime);
                     event.setErrorMessage(e.getMessage());
 
                     failedEvents++;
+
                     totalExecutionTimeMs += executionTime;
                 }
 

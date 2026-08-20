@@ -19,15 +19,16 @@ public class TrafficGenerator {
                 "DELETE"
         };
 
-        String operation = operations[random.nextInt(operations.length)];
+        String operation =
+                operations[random.nextInt(operations.length)];
 
         String sql = generateSql(operation);
 
         return TrafficEvent.builder()
                 .environmentId(environmentId)
-                .operation(operation)
+                .operationType(operation)
                 .sql(sql)
-                .timestamp(LocalDateTime.now())
+                .createdAt(LocalDateTime.now())
                 .build();
     }
 
@@ -40,7 +41,8 @@ public class TrafficGenerator {
             case "INSERT" ->
                     "INSERT INTO customers (name, email) " +
                             "VALUES ('Customer" + customerId +
-                            "', 'customer" + customerId + "@example.com');";
+                            "', 'customer" + customerId +
+                            "@example.com');";
 
             case "UPDATE" ->
                     "UPDATE customers " +

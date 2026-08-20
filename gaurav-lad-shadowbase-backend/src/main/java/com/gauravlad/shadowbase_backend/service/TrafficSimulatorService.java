@@ -1,5 +1,6 @@
 package com.gauravlad.shadowbase_backend.service;
 
+import com.gauravlad.shadowbase_backend.repository.TrafficEventRepository;
 import com.gauravlad.shadowbase_backend.traffic.TrafficEvent;
 import org.springframework.stereotype.Service;
 
@@ -11,9 +12,19 @@ import java.util.Random;
 @Service
 public class TrafficSimulatorService {
 
+    private final TrafficEventRepository trafficEventRepository;
+
     private final Random random = new Random();
 
-    public List<TrafficEvent> generateTraffic(Long environmentId, int count) {
+    public TrafficSimulatorService(
+            TrafficEventRepository trafficEventRepository) {
+
+        this.trafficEventRepository = trafficEventRepository;
+    }
+
+    public List<TrafficEvent> generateTraffic(
+            Long environmentId,
+            int count) {
 
         List<TrafficEvent> events = new ArrayList<>();
 
@@ -26,22 +37,32 @@ public class TrafficSimulatorService {
 
             if (operation == 0) {
 
-                sql = "INSERT INTO customers (name) VALUES ('Customer "
-                        + random.nextInt(1000) + "');";
+                int customerId = random.nextInt(1000);
+
+                sql = "INSERT INTO customers " +
+                        "(name, email) VALUES " +
+                        "('Customer " + customerId + "', " +
+                        "'customer" + customerId +
+                        "@example.com');";
 
                 operationType = "INSERT";
 
             } else if (operation == 1) {
 
-                sql = "UPDATE customers SET name = 'Updated Customer' "
-                        + "WHERE id = " + (random.nextInt(10) + 1) + ";";
+                sql = "UPDATE customers " +
+                        "SET name = 'Updated Customer' " +
+                        "WHERE id = " +
+                        (random.nextInt(10) + 1) +
+                        ";";
 
                 operationType = "UPDATE";
 
             } else {
 
-                sql = "DELETE FROM customers WHERE id = "
-                        + (random.nextInt(10) + 1) + ";";
+                sql = "DELETE FROM customers " +
+                        "WHERE id = " +
+                        (random.nextInt(10) + 1) +
+                        ";";
 
                 operationType = "DELETE";
             }
@@ -57,5 +78,18 @@ public class TrafficSimulatorService {
         }
 
         return events;
+    }
+
+    public TrafficEvent save(TrafficEvent event) {
+
+        return trafficEventRepository.save(event);
+    }
+
+    public List<TrafficEvent> getTrafficHistory(
+            Long environmentId) {
+
+        return trafficEventRepository
+                .findByEnvironmentIdOrderByCreatedAtDesc(
+                        environmentId);
     }
 }
