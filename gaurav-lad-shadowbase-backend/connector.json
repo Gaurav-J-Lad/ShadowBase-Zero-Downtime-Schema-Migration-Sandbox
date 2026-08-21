@@ -1,0 +1,25 @@
+{
+  "name": "shadowbase-postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+
+    "database.hostname": "postgres-source",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "postgres",
+    "database.dbname": "production_db",
+
+    "topic.prefix": "shadowbase",
+
+    "plugin.name": "pgoutput",
+
+    "publication.autocreate.mode": "filtered",
+
+    "slot.name": "shadowbase_slot",
+
+    "table.include.list": "public.customers",
+
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:9092",
+    "schema.history.internal.kafka.topic": "schemahistory.shadowbase"
+  }
+}
