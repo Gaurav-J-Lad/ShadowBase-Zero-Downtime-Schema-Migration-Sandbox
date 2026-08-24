@@ -1,65 +1,42 @@
 package com.gauravlad.shadowbase_backend.kafka;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.JsonNode;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 
 @Component
 public class DebeziumEventConsumer {
 
     private final ObjectMapper objectMapper;
+    private final CdcReplayService cdcReplayService;
 
-    public DebeziumEventConsumer(ObjectMapper objectMapper) {
+    public DebeziumEventConsumer(
+            ObjectMapper objectMapper,
+            CdcReplayService cdcReplayService) {
+
         this.objectMapper = objectMapper;
+        this.cdcReplayService = cdcReplayService;
     }
 
     @KafkaListener(
             topics = "shadowbase.public.customers",
-            groupId = "shadowbase-replayer"
+            groupId = "shadowbase-cdc-consumer"
     )
     public void consume(String message) {
 
         try {
 
-            JsonNode root =
+            System.out.println(
+                    "\n========== CDC EVENT =========="
+            );
+
+            System.out.println(message);
+
+            JsonNode event =
                     objectMapper.readTree(message);
 
-            JsonNode payload =
-                    root.get("payload");
-
-            String operation =
-                    payload.get("op").asText();
-
-            JsonNode before =
-                    payload.get("before");
-
-            JsonNode after =
-                    payload.get("after");
-
-            System.out.println(
-                    "===================================="
-            );
-
-            System.out.println(
-                    "CDC EVENT RECEIVED"
-            );
-
-            System.out.println(
-                    "Operation: " + operation
-            );
-
-            System.out.println(
-                    "Before: " + before
-            );
-
-            System.out.println(
-                    "After: " + after
-            );
-
-            System.out.println(
-                    "===================================="
-            );
+            cdcReplayService.replay(event);
 
         } catch (Exception e) {
 
@@ -67,6 +44,8 @@ public class DebeziumEventConsumer {
                     "Failed to process CDC event: "
                             + e.getMessage()
             );
+
+            e.printStackTrace();
         }
     }
 }
