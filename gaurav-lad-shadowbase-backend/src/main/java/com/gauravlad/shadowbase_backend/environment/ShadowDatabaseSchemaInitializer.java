@@ -10,11 +10,18 @@ import java.sql.Statement;
 @Component
 public class ShadowDatabaseSchemaInitializer {
 
-    public void initialize(PostgreSQLContainer<?> container) {
-        String jdbcUrl = container.getJdbcUrl()
-                + "&options=-c%20TimeZone%3DUTC";
-        String username = container.getUsername();
-        String password = container.getPassword();
+    public void initialize(
+            PostgreSQLContainer<?> container) {
+
+        String jdbcUrl =
+                container.getJdbcUrl()
+                        + "&options=-c%20TimeZone%3DUTC";
+
+        String username =
+                container.getUsername();
+
+        String password =
+                container.getPassword();
 
         String sql = """
                 CREATE TABLE customers (
@@ -37,27 +44,41 @@ public class ShadowDatabaseSchemaInitializer {
                     product_id BIGINT NOT NULL,
                     quantity INTEGER NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
                     CONSTRAINT fk_order_customer
                         FOREIGN KEY (customer_id)
                         REFERENCES customers(id),
+
                     CONSTRAINT fk_order_product
                         FOREIGN KEY (product_id)
                         REFERENCES products(id)
                 );
                 """;
 
-        try (Connection connection =
-                     DriverManager.getConnection(
-                             jdbcUrl,
-                             username,
-                             password);
-             Statement statement = connection.createStatement()) {
+        try (
+                Connection connection =
+                        DriverManager.getConnection(
+                                jdbcUrl,
+                                username,
+                                password
+                        );
+
+                Statement statement =
+                        connection.createStatement()
+        ) {
 
             statement.execute(sql);
 
+            System.out.println(
+                    "Shadow database schema created successfully."
+            );
+
         } catch (Exception e) {
+
             throw new RuntimeException(
-                    "Failed to initialize shadow database schema", e);
+                    "Failed to initialize shadow database schema",
+                    e
+            );
         }
     }
 }
