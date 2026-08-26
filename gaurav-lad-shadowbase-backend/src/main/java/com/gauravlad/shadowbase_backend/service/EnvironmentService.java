@@ -27,56 +27,159 @@ public class EnvironmentService {
         this.schemaInitializer = schemaInitializer;
     }
 
-    public Environment createEnvironment(CreateEnvironmentRequest request) {
+    public Environment createEnvironment(
+            CreateEnvironmentRequest request) {
 
-        Environment environment = Environment.builder()
-                .name(request.name())
-                .databaseType(request.databaseType())
-                .databaseVersion(request.databaseVersion())
-                .status("CREATING")
-                .createdAt(LocalDateTime.now())
-                .build();
+        Environment environment =
+                Environment.builder()
+                        .name(request.name())
+                        .databaseType(request.databaseType())
+                        .databaseVersion(request.databaseVersion())
+                        .status("CREATING")
+                        .createdAt(LocalDateTime.now())
+                        .build();
 
-        environment = environmentRepository.save(environment);
+        environment =
+                environmentRepository.save(environment);
 
-        if ("POSTGRESQL".equalsIgnoreCase(request.databaseType())) {
+        try {
 
-            var container = shadowDatabaseManager.createPostgresContainer(
-                    environment.getId(),
-                    request.databaseVersion()
+            if ("POSTGRESQL".equalsIgnoreCase(
+                    request.databaseType())) {
+
+                System.out.println(
+                        "Creating shadow PostgreSQL container "
+                                + "for environment "
+                                + environment.getId()
+                );
+
+                var container =
+                        shadowDatabaseManager
+                                .createPostgresContainer(
+                                        environment.getId(),
+                                        request.databaseVersion()
+                                );
+
+                System.out.println(
+                        "Shadow container started: "
+                                + container.getContainerId()
+                );
+
+                /*
+                 * Initialize customers,
+                 * products and orders tables.
+                 */
+                schemaInitializer.initialize(container);
+
+                environment.setContainerId(
+                        container.getContainerId()
+                );
+
+                environment.setStatus(
+                        "RUNNING"
+                );
+
+                environment =
+                        environmentRepository.save(
+                                environment
+                        );
+
+                System.out.println(
+                        "Environment "
+                                + environment.getId()
+                                + " is RUNNING"
+                );
+
+            } else {
+
+                environment.setStatus(
+                        "RUNNING"
+                );
+
+                environment =
+                        environmentRepository.save(
+                                environment
+                        );
+            }
+
+            return environment;
+
+        } catch (Exception e) {
+
+            System.err.println(
+                    "Environment creation failed for ID "
+                            + environment.getId()
             );
-            schemaInitializer.initialize(container);
-            environment.setContainerId(container.getContainerId());
-            environment.setStatus("RUNNING");
 
-            environment = environmentRepository.save(environment);
+            e.printStackTrace();
+
+            /*
+             * Stop the Testcontainer if it was created
+             * but schema initialization failed.
+             */
+            try {
+
+                shadowDatabaseManager.stopContainer(
+                        environment.getId()
+                );
+
+            } catch (Exception cleanupException) {
+
+                System.err.println(
+                        "Failed to cleanup shadow container: "
+                                + cleanupException.getMessage()
+                );
+            }
+
+            /*
+             * Keep the database record so we can see
+             * that creation failed.
+             */
+            environment.setStatus(
+                    "FAILED"
+            );
+
+            environment =
+                    environmentRepository.save(
+                            environment
+                    );
+
+            throw new RuntimeException(
+                    "Failed to create shadow environment",
+                    e
+            );
         }
-
-        return environment;
     }
 
     public List<Environment> getAllEnvironments() {
+
         return environmentRepository.findAll();
     }
 
     public Environment getEnvironmentById(Long id) {
 
-        return environmentRepository.findById(id)
+        return environmentRepository
+                .findById(id)
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "Environment not found with id: " + id));
+                                "Environment not found with id: "
+                                        + id
+                        )
+                );
     }
 
     public void deleteEnvironment(Long id) {
 
-        Environment environment = getEnvironmentById(id);
+        Environment environment =
+                getEnvironmentById(id);
 
-        // Stop the Docker container before deleting the environment
         if (environment.getContainerId() != null) {
+
             shadowDatabaseManager.stopContainer(id);
         }
 
-        // Delete the environment record from PostgreSQL
-        environmentRepository.delete(environment);
+        environmentRepository.delete(
+                environment
+        );
     }
 }

@@ -4,41 +4,53 @@ import org.springframework.stereotype.Component;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 
 @Component
 public class ShadowDatabaseSchemaInitializer {
 
-    public void initialize(
-            PostgreSQLContainer<?> container) {
+    public void initialize(PostgreSQLContainer<?> container) {
 
-        String jdbcUrl =
-                container.getJdbcUrl()
-                        + "&options=-c%20TimeZone%3DUTC";
+        if (container == null) {
+            throw new IllegalArgumentException(
+                    "PostgreSQL container is null"
+            );
+        }
 
-        String username =
-                container.getUsername();
+        if (!container.isRunning()) {
+            throw new IllegalStateException(
+                    "PostgreSQL container is not running"
+            );
+        }
 
-        String password =
-                container.getPassword();
+        String jdbcUrl = container.getJdbcUrl();
+        String username = container.getUsername();
+        String password = container.getPassword();
+
+        System.out.println(
+                "Initializing shadow database schema..."
+        );
+
+        System.out.println(
+                "JDBC URL: " + jdbcUrl
+        );
 
         String sql = """
-                CREATE TABLE customers (
+                CREATE TABLE IF NOT EXISTS customers (
                     id BIGSERIAL PRIMARY KEY,
                     name VARCHAR(100) NOT NULL,
                     email VARCHAR(150) NOT NULL UNIQUE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
 
-                CREATE TABLE products (
+                CREATE TABLE IF NOT EXISTS products (
                     id BIGSERIAL PRIMARY KEY,
                     name VARCHAR(100) NOT NULL,
                     price DECIMAL(10, 2) NOT NULL,
                     stock INTEGER NOT NULL
                 );
 
-                CREATE TABLE orders (
+                CREATE TABLE IF NOT EXISTS orders (
                     id BIGSERIAL PRIMARY KEY,
                     customer_id BIGINT NOT NULL,
                     product_id BIGINT NOT NULL,
@@ -57,11 +69,7 @@ public class ShadowDatabaseSchemaInitializer {
 
         try (
                 Connection connection =
-                        DriverManager.getConnection(
-                                jdbcUrl,
-                                username,
-                                password
-                        );
+                        container.createConnection("");
 
                 Statement statement =
                         connection.createStatement()
@@ -70,10 +78,14 @@ public class ShadowDatabaseSchemaInitializer {
             statement.execute(sql);
 
             System.out.println(
-                    "Shadow database schema created successfully."
+                    "Shadow database schema initialized successfully."
             );
 
         } catch (Exception e) {
+
+            System.err.println(
+                    "Failed to initialize shadow database schema."
+            );
 
             throw new RuntimeException(
                     "Failed to initialize shadow database schema",
