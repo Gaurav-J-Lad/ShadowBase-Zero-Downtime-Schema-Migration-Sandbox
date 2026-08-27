@@ -20,7 +20,7 @@ public class CdcReplayService {
      *
      * Later this will become dynamic.
      */
-    private static final Long SHADOW_ENVIRONMENT_ID = 17L;
+    private static final Long SHADOW_ENVIRONMENT_ID = 28L;
 
     /*
      * PostgreSQL version used by the shadow database.
