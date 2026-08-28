@@ -37,88 +37,225 @@ public class CdcEventProcessor {
                 return;
             }
 
-            JsonNode operation = payload.get("op");
-            JsonNode after = payload.get("after");
-            JsonNode before = payload.get("before");
+            String operation = payload.get("op").asText();
 
-            if (operation == null) {
-                System.out.println("CDC event has no operation");
-                return;
-            }
+            System.out.println("CDC Operation: " + operation);
 
-            String op = operation.asText();
-
-            System.out.println("======================================");
-            System.out.println("CDC EVENT RECEIVED");
-            System.out.println("Operation : " + op);
-            System.out.println("======================================");
-
-            switch (op) {
+            switch (operation) {
 
                 case "c":
-                    handleInsert(after);
+                    insert(payload.get("after"));
                     break;
 
                 case "u":
-                    handleUpdate(before, after);
+                    update(payload.get("after"));
                     break;
 
                 case "d":
-                    handleDelete(before);
+                    delete(payload.get("before"));
                     break;
 
                 default:
-                    System.out.println("Unsupported CDC operation: " + op);
+                    System.out.println(
+                            "Unsupported CDC operation: " + operation
+                    );
             }
 
         } catch (Exception e) {
+
+            System.err.println("Error processing CDC event");
+
             e.printStackTrace();
         }
     }
 
-    private void handleInsert(JsonNode after) {
+    private void insert(JsonNode data) {
 
-        System.out.println("CDC INSERT detected");
-
-        if (after == null) {
+        if (data == null) {
             return;
         }
 
-        System.out.println("ID    : " + after.get("id").asLong());
-        System.out.println("Name  : " + after.get("name").asText());
-        System.out.println("Email : " + after.get("email").asText());
+        long id = data.get("id").asLong();
+        String name = data.get("name").asText();
+        String email = data.get("email").asText();
 
-        // TODO:
-        // Execute INSERT into shadow database
+        System.out.println("CDC INSERT");
+        System.out.println("ID    : " + id);
+        System.out.println("Name  : " + name);
+        System.out.println("Email : " + email);
+
+        executeInsert(id, name, email);
     }
 
-    private void handleUpdate(JsonNode before, JsonNode after) {
+    private void update(JsonNode data) {
 
-        System.out.println("CDC UPDATE detected");
-
-        if (after == null) {
+        if (data == null) {
             return;
         }
 
-        System.out.println("Updated ID    : " + after.get("id").asLong());
-        System.out.println("Updated Name  : " + after.get("name").asText());
-        System.out.println("Updated Email : " + after.get("email").asText());
+        long id = data.get("id").asLong();
+        String name = data.get("name").asText();
+        String email = data.get("email").asText();
 
-        // TODO:
-        // Execute UPDATE into shadow database
+        System.out.println("CDC UPDATE");
+        System.out.println("ID    : " + id);
+        System.out.println("Name  : " + name);
+        System.out.println("Email : " + email);
+
+        executeUpdate(id, name, email);
     }
 
-    private void handleDelete(JsonNode before) {
+    private void delete(JsonNode data) {
 
-        System.out.println("CDC DELETE detected");
-
-        if (before == null) {
+        if (data == null) {
             return;
         }
 
-        System.out.println("Deleted ID : " + before.get("id").asLong());
+        long id = data.get("id").asLong();
 
-        // TODO:
-        // Execute DELETE from shadow database
+        System.out.println("CDC DELETE");
+        System.out.println("ID: " + id);
+
+        executeDelete(id);
+    }
+
+    private Connection getShadowConnection() throws Exception {
+
+        Environment environment =
+                environmentRepository.findById(28L)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Environment 28 not found"
+                                ));
+
+        String containerId = environment.getContainerId();
+
+        if (containerId == null) {
+            throw new RuntimeException(
+                    "Environment 28 has no shadow container"
+            );
+        }
+
+        /*
+         * For the current test we use the JDBC URL exposed by
+         * Testcontainers.
+         *
+         * Environment 28 currently has:
+         *
+         * jdbc:postgresql://localhost:55894/shadowdb
+         */
+
+        String jdbcUrl =
+                "jdbc:postgresql://localhost:55894/shadowdb";
+
+        return DriverManager.getConnection(
+                jdbcUrl,
+                "postgres",
+                "postgres"
+        );
+    }
+
+    private void executeInsert(
+            long id,
+            String name,
+            String email) {
+
+        String sql = """
+                INSERT INTO customers (id, name, email)
+                VALUES (?, ?, ?)
+                """;
+
+        try (
+                Connection connection = getShadowConnection();
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+
+            statement.setLong(1, id);
+            statement.setString(2, name);
+            statement.setString(3, email);
+
+            statement.executeUpdate();
+
+            System.out.println(
+                    "CDC INSERT applied to shadow database"
+            );
+
+        } catch (Exception e) {
+
+            System.err.println(
+                    "Failed to apply INSERT to shadow database"
+            );
+
+            e.printStackTrace();
+        }
+    }
+
+    private void executeUpdate(
+            long id,
+            String name,
+            String email) {
+
+        String sql = """
+                UPDATE customers
+                SET name = ?, email = ?
+                WHERE id = ?
+                """;
+
+        try (
+                Connection connection = getShadowConnection();
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+
+            statement.setString(1, name);
+            statement.setString(2, email);
+            statement.setLong(3, id);
+
+            statement.executeUpdate();
+
+            System.out.println(
+                    "CDC UPDATE applied to shadow database"
+            );
+
+        } catch (Exception e) {
+
+            System.err.println(
+                    "Failed to apply UPDATE to shadow database"
+            );
+
+            e.printStackTrace();
+        }
+    }
+
+    private void executeDelete(long id) {
+
+        String sql = """
+                DELETE FROM customers
+                WHERE id = ?
+                """;
+
+        try (
+                Connection connection = getShadowConnection();
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+
+            statement.setLong(1, id);
+
+            statement.executeUpdate();
+
+            System.out.println(
+                    "CDC DELETE applied to shadow database"
+            );
+
+        } catch (Exception e) {
+
+            System.err.println(
+                    "Failed to apply DELETE to shadow database"
+            );
+
+            e.printStackTrace();
+        }
     }
 }
