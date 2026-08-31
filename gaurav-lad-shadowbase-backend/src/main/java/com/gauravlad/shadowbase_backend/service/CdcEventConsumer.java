@@ -5,23 +5,26 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
-
 @Service
 public class CdcEventConsumer {
 
     private final ObjectMapper objectMapper;
     private final CdcEventApplier cdcEventApplier;
-    private final DataSource shadowDataSource;
+
+    /*
+     * Temporary environment ID.
+     *
+     * We will make this dynamic later.
+     * Your current working shadow environment is 28.
+     */
+    private static final Long ENVIRONMENT_ID = 28L;
 
     public CdcEventConsumer(
             ObjectMapper objectMapper,
-            CdcEventApplier cdcEventApplier,
-            DataSource shadowDataSource
-    ) {
+            CdcEventApplier cdcEventApplier) {
+
         this.objectMapper = objectMapper;
         this.cdcEventApplier = cdcEventApplier;
-        this.shadowDataSource = shadowDataSource;
     }
 
     @KafkaListener(
@@ -31,51 +34,72 @@ public class CdcEventConsumer {
     public void consume(String message) {
 
         try {
-            System.out.println("CDC EVENT RECEIVED:");
+
+            System.out.println();
+            System.out.println("======================================");
+            System.out.println("CDC EVENT RECEIVED");
+            System.out.println("======================================");
             System.out.println(message);
 
-            JsonNode root = objectMapper.readTree(message);
+            JsonNode root =
+                    objectMapper.readTree(message);
 
-            JsonNode payload = root.get("payload");
+            JsonNode payload =
+                    root.get("payload");
 
             if (payload == null || payload.isNull()) {
-                System.out.println("No payload found.");
+
+                System.out.println(
+                        "CDC event has no payload."
+                );
+
                 return;
             }
 
-            String operation = payload
-                    .get("op")
-                    .asText();
+            JsonNode operationNode =
+                    payload.get("op");
 
-            System.out.println("CDC Operation: " + operation);
+            if (operationNode == null
+                    || operationNode.isNull()) {
+
+                System.out.println(
+                        "CDC event has no operation."
+                );
+
+                return;
+            }
+
+            String operation =
+                    operationNode.asText();
+
+            System.out.println(
+                    "CDC Operation: " + operation
+            );
 
             switch (operation) {
 
-                case "c":
-                    handleInsert(payload);
-                    break;
+                // INSERT
+                case "c" -> handleInsert(payload);
 
-                case "u":
-                    System.out.println("UPDATE event received.");
-                    break;
+                // UPDATE
+                case "u" -> handleUpdate(payload);
 
-                case "d":
-                    System.out.println("DELETE event received.");
-                    break;
+                // DELETE
+                case "d" -> handleDelete(payload);
 
-                case "r":
-                    System.out.println("READ/SNAPSHOT event received.");
-                    break;
+                // SNAPSHOT
+                case "r" -> handleSnapshot(payload);
 
-                default:
-                    System.out.println(
-                            "Unknown CDC operation: " + operation
-                    );
+                default -> System.out.println(
+                        "Unknown CDC operation: "
+                                + operation
+                );
             }
 
         } catch (Exception e) {
+
             System.err.println(
-                    "Failed to process CDC event: "
+                    "Error processing CDC event: "
                             + e.getMessage()
             );
 
@@ -83,33 +107,107 @@ public class CdcEventConsumer {
         }
     }
 
-    private void handleInsert(JsonNode payload) {
+    private void handleInsert(
+            JsonNode payload) {
 
-        JsonNode after = payload.get("after");
+        JsonNode after =
+                payload.get("after");
 
         if (after == null || after.isNull()) {
-            System.out.println("INSERT event has no 'after' data.");
+
+            System.out.println(
+                    "INSERT event has no 'after' data."
+            );
+
             return;
         }
 
-        String name = after
-                .get("name")
-                .asText();
-
-        String email = after
-                .get("email")
-                .asText();
-
         System.out.println(
-                "Applying INSERT: "
-                        + name + " / " + email
+                "Applying INSERT to environment "
+                        + ENVIRONMENT_ID
         );
 
         cdcEventApplier.applyInsert(
-                shadowDataSource,
-                "customers",
-                name,
-                email
+                ENVIRONMENT_ID,
+                after
+        );
+    }
+
+    private void handleUpdate(
+            JsonNode payload) {
+
+        JsonNode after =
+                payload.get("after");
+
+        if (after == null || after.isNull()) {
+
+            System.out.println(
+                    "UPDATE event has no 'after' data."
+            );
+
+            return;
+        }
+
+        System.out.println(
+                "Applying UPDATE to environment "
+                        + ENVIRONMENT_ID
+        );
+
+        cdcEventApplier.applyUpdate(
+                ENVIRONMENT_ID,
+                after
+        );
+    }
+
+    private void handleDelete(
+            JsonNode payload) {
+
+        JsonNode before =
+                payload.get("before");
+
+        if (before == null || before.isNull()) {
+
+            System.out.println(
+                    "DELETE event has no 'before' data."
+            );
+
+            return;
+        }
+
+        System.out.println(
+                "Applying DELETE to environment "
+                        + ENVIRONMENT_ID
+        );
+
+        cdcEventApplier.applyDelete(
+                ENVIRONMENT_ID,
+                before
+        );
+    }
+
+    private void handleSnapshot(
+            JsonNode payload) {
+
+        JsonNode after =
+                payload.get("after");
+
+        if (after == null || after.isNull()) {
+
+            System.out.println(
+                    "SNAPSHOT event has no 'after' data."
+            );
+
+            return;
+        }
+
+        System.out.println(
+                "Applying SNAPSHOT to environment "
+                        + ENVIRONMENT_ID
+        );
+
+        cdcEventApplier.applyInsert(
+                ENVIRONMENT_ID,
+                after
         );
     }
 }
