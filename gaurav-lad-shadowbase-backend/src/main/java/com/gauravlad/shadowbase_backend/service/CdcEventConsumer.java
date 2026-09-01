@@ -12,12 +12,16 @@ public class CdcEventConsumer {
     private final CdcEventApplier cdcEventApplier;
 
     /*
-     * Temporary environment ID.
+     * Temporary target environment.
+     *
+     * Currently environment 28 is the active
+     * shadow PostgreSQL environment.
      *
      * We will make this dynamic later.
-     * Your current working shadow environment is 28.
      */
-    private static final Long ENVIRONMENT_ID = 28L;
+    private Long getTargetEnvironmentId() {
+        return 28L;
+    }
 
     public CdcEventConsumer(
             ObjectMapper objectMapper,
@@ -107,6 +111,9 @@ public class CdcEventConsumer {
         }
     }
 
+    /*
+     * INSERT
+     */
     private void handleInsert(
             JsonNode payload) {
 
@@ -122,17 +129,23 @@ public class CdcEventConsumer {
             return;
         }
 
+        Long environmentId =
+                getTargetEnvironmentId();
+
         System.out.println(
                 "Applying INSERT to environment "
-                        + ENVIRONMENT_ID
+                        + environmentId
         );
 
         cdcEventApplier.applyInsert(
-                ENVIRONMENT_ID,
+                environmentId,
                 after
         );
     }
 
+    /*
+     * UPDATE
+     */
     private void handleUpdate(
             JsonNode payload) {
 
@@ -148,17 +161,23 @@ public class CdcEventConsumer {
             return;
         }
 
+        Long environmentId =
+                getTargetEnvironmentId();
+
         System.out.println(
                 "Applying UPDATE to environment "
-                        + ENVIRONMENT_ID
+                        + environmentId
         );
 
         cdcEventApplier.applyUpdate(
-                ENVIRONMENT_ID,
+                environmentId,
                 after
         );
     }
 
+    /*
+     * DELETE
+     */
     private void handleDelete(
             JsonNode payload) {
 
@@ -174,17 +193,23 @@ public class CdcEventConsumer {
             return;
         }
 
+        Long environmentId =
+                getTargetEnvironmentId();
+
         System.out.println(
                 "Applying DELETE to environment "
-                        + ENVIRONMENT_ID
+                        + environmentId
         );
 
         cdcEventApplier.applyDelete(
-                ENVIRONMENT_ID,
+                environmentId,
                 before
         );
     }
 
+    /*
+     * SNAPSHOT
+     */
     private void handleSnapshot(
             JsonNode payload) {
 
@@ -200,13 +225,16 @@ public class CdcEventConsumer {
             return;
         }
 
+        Long environmentId =
+                getTargetEnvironmentId();
+
         System.out.println(
                 "Applying SNAPSHOT to environment "
-                        + ENVIRONMENT_ID
+                        + environmentId
         );
 
         cdcEventApplier.applyInsert(
-                ENVIRONMENT_ID,
+                environmentId,
                 after
         );
     }
