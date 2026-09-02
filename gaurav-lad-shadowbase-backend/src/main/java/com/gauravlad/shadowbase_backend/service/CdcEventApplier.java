@@ -1,24 +1,23 @@
-package com.gauravlad.shadowbase_backend.service;
+ package com.gauravlad.shadowbase_backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.gauravlad.shadowbase_backend.entity.Environment;
-import com.gauravlad.shadowbase_backend.repository.EnvironmentRepository;
+import com.gauravlad.shadowbase_backend.environment.ShadowDatabaseManager;
 import org.springframework.stereotype.Service;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.Timestamp;
 
 @Service
 public class CdcEventApplier {
 
-    private final EnvironmentRepository environmentRepository;
+    private final ShadowDatabaseManager shadowDatabaseManager;
 
     public CdcEventApplier(
-            EnvironmentRepository environmentRepository) {
+            ShadowDatabaseManager shadowDatabaseManager) {
 
-        this.environmentRepository =
-                environmentRepository;
+        this.shadowDatabaseManager =
+                shadowDatabaseManager;
     }
 
     /*
@@ -28,51 +27,39 @@ public class CdcEventApplier {
             Long environmentId,
             JsonNode data) {
 
-        try {
+        System.out.println(
+                "Applying INSERT to shadow database"
+        );
 
-            Environment environment =
-                    getEnvironment(environmentId);
+        String sql =
+                """
+                INSERT INTO customers
+                (id, name, email, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (id) DO NOTHING
+                """;
 
-            String jdbcUrl =
-                    getJdbcUrl(environment);
+        try (
+                Connection connection =
+                        shadowDatabaseManager
+                                .getConnection(environmentId);
 
-            System.out.println(
-                    "Applying INSERT to shadow database"
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+
+            setCustomerValues(
+                    statement,
+                    data
             );
 
-            String sql =
-                    """
-                    INSERT INTO customers
-                    (id, name, email, created_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT (id) DO NOTHING
-                    """;
+            int rows =
+                    statement.executeUpdate();
 
-            try (
-                    Connection connection =
-                            DriverManager.getConnection(
-                                    jdbcUrl,
-                                    "postgres",
-                                    "postgres"
-                            );
-
-                    PreparedStatement statement =
-                            connection.prepareStatement(sql)
-            ) {
-
-                setCustomerValues(
-                        statement,
-                        data
-                );
-
-                int rows =
-                        statement.executeUpdate();
-
-                System.out.println(
-                        "INSERT applied. Rows affected: "
-                                + rows
-                );
-            }
+            System.out.println(
+                    "INSERT applied. Rows affected: "
+                            + rows
+            );
 
         } catch (Exception e) {
 
@@ -90,69 +77,57 @@ public class CdcEventApplier {
             Long environmentId,
             JsonNode data) {
 
-        try {
+        System.out.println(
+                "Applying UPDATE to shadow database"
+        );
 
-            Environment environment =
-                    getEnvironment(environmentId);
+        String sql =
+                """
+                UPDATE customers
+                SET
+                    name = ?,
+                    email = ?,
+                    created_at = ?
+                WHERE id = ?
+                """;
 
-            String jdbcUrl =
-                    getJdbcUrl(environment);
+        try (
+                Connection connection =
+                        shadowDatabaseManager
+                                .getConnection(environmentId);
 
-            System.out.println(
-                    "Applying UPDATE to shadow database"
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+
+            statement.setString(
+                    1,
+                    getText(data, "name")
             );
 
-            String sql =
-                    """
-                    UPDATE customers
-                    SET
-                        name = ?,
-                        email = ?,
-                        created_at = ?
-                    WHERE id = ?
-                    """;
+            statement.setString(
+                    2,
+                    getText(data, "email")
+            );
 
-            try (
-                    Connection connection =
-                            DriverManager.getConnection(
-                                    jdbcUrl,
-                                    "postgres",
-                                    "postgres"
-                            );
+            setTimestamp(
+                    statement,
+                    3,
+                    data
+            );
 
-                    PreparedStatement statement =
-                            connection.prepareStatement(sql)
-            ) {
+            statement.setLong(
+                    4,
+                    getLong(data, "id")
+            );
 
-                statement.setString(
-                        1,
-                        getText(data, "name")
-                );
+            int rows =
+                    statement.executeUpdate();
 
-                statement.setString(
-                        2,
-                        getText(data, "email")
-                );
-
-                setTimestamp(
-                        statement,
-                        3,
-                        data
-                );
-
-                statement.setLong(
-                        4,
-                        getLong(data, "id")
-                );
-
-                int rows =
-                        statement.executeUpdate();
-
-                System.out.println(
-                        "UPDATE applied. Rows affected: "
-                                + rows
-                );
-            }
+            System.out.println(
+                    "UPDATE applied. Rows affected: "
+                            + rows
+            );
 
         } catch (Exception e) {
 
@@ -170,49 +145,37 @@ public class CdcEventApplier {
             Long environmentId,
             JsonNode data) {
 
-        try {
+        System.out.println(
+                "Applying DELETE to shadow database"
+        );
 
-            Environment environment =
-                    getEnvironment(environmentId);
+        String sql =
+                """
+                DELETE FROM customers
+                WHERE id = ?
+                """;
 
-            String jdbcUrl =
-                    getJdbcUrl(environment);
+        try (
+                Connection connection =
+                        shadowDatabaseManager
+                                .getConnection(environmentId);
 
-            System.out.println(
-                    "Applying DELETE to shadow database"
+                PreparedStatement statement =
+                        connection.prepareStatement(sql)
+        ) {
+
+            statement.setLong(
+                    1,
+                    getLong(data, "id")
             );
 
-            String sql =
-                    """
-                    DELETE FROM customers
-                    WHERE id = ?
-                    """;
+            int rows =
+                    statement.executeUpdate();
 
-            try (
-                    Connection connection =
-                            DriverManager.getConnection(
-                                    jdbcUrl,
-                                    "postgres",
-                                    "postgres"
-                            );
-
-                    PreparedStatement statement =
-                            connection.prepareStatement(sql)
-            ) {
-
-                statement.setLong(
-                        1,
-                        getLong(data, "id")
-                );
-
-                int rows =
-                        statement.executeUpdate();
-
-                System.out.println(
-                        "DELETE applied. Rows affected: "
-                                + rows
-                );
-            }
+            System.out.println(
+                    "DELETE applied. Rows affected: "
+                            + rows
+            );
 
         } catch (Exception e) {
 
@@ -221,52 +184,6 @@ public class CdcEventApplier {
                     e
             );
         }
-    }
-
-    /*
-     * Get environment
-     */
-    private Environment getEnvironment(
-            Long environmentId) {
-
-        return environmentRepository
-                .findById(environmentId)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Environment not found: "
-                                        + environmentId
-                        )
-                );
-    }
-
-    /*
-     * Build JDBC URL for the shadow container.
-     *
-     * Testcontainers exposes PostgreSQL on a
-     * random host port, therefore we need to
-     * obtain that port dynamically.
-     *
-     * The current implementation expects the
-     * container port to be available through
-     * ShadowDatabaseManager.
-     */
-    private String getJdbcUrl(
-            Environment environment) {
-
-        /*
-         * TEMPORARY:
-         *
-         * Your current environment 28 was started
-         * with a JDBC URL similar to:
-         *
-         * jdbc:postgresql://localhost:55894/shadowdb
-         *
-         * This must become dynamic because the
-         * Testcontainers host port changes.
-         */
-        throw new UnsupportedOperationException(
-                "Dynamic shadow JDBC URL is the next step"
-        );
     }
 
     /*
@@ -336,7 +253,7 @@ public class CdcEventApplier {
     }
 
     /*
-     * Set timestamp.
+     * Set timestamp
      */
     private void setTimestamp(
             PreparedStatement statement,
@@ -359,11 +276,25 @@ public class CdcEventApplier {
             return;
         }
 
-        statement.setObject(
+        /*
+         * PostgreSQL / Debezium timestamp can
+         * normally arrive as:
+         *
+         * 2026-09-02T14:30:00
+         *
+         * Convert it to:
+         *
+         * 2026-09-02 14:30:00
+         */
+        Timestamp timestamp =
+                Timestamp.valueOf(
+                        createdAt
+                                .replace("T", " ")
+                );
+
+        statement.setTimestamp(
                 parameterIndex,
-                java.sql.Timestamp.valueOf(
-                        createdAt.replace("T", " ")
-                )
+                timestamp
         );
     }
 }

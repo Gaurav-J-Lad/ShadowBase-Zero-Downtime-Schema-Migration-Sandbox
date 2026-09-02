@@ -4,6 +4,7 @@ import com.gauravlad.shadowbase_backend.dto.ShadowDatabaseConnection;
 import org.springframework.stereotype.Component;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import java.sql.Connection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -21,14 +22,13 @@ public class ShadowDatabaseManager {
         this.schemaInitializer = schemaInitializer;
     }
 
-    /**
-     * Create and start a new PostgreSQL shadow container.
+    /*
+     * CREATE POSTGRES CONTAINER
      */
     public synchronized PostgreSQLContainer<?> createPostgresContainer(
             Long environmentId,
             String version) {
 
-        // Stop existing container for this environment
         stopContainer(environmentId);
 
         System.out.println(
@@ -43,7 +43,6 @@ public class ShadowDatabaseManager {
                         .withPassword("postgres")
                         .withEnv("TZ", "Asia/Kolkata");
 
-        // Start PostgreSQL Testcontainer
         container.start();
 
         System.out.println(
@@ -51,17 +50,20 @@ public class ShadowDatabaseManager {
                         + container.getContainerId()
         );
 
-        // Create required tables
+        /*
+         * Initialize customers/products/orders.
+         */
         schemaInitializer.initialize(container);
 
-        System.out.println(
-                "Shadow database schema initialized for environment: "
-                        + environmentId
+        /*
+         * Store active container in application memory.
+         */
+        containers.put(
+                environmentId,
+                container
         );
 
-        // Store container in memory
-        containers.put(environmentId, container);
-
+        System.out.println();
         System.out.println(
                 "======================================"
         );
@@ -72,10 +74,12 @@ public class ShadowDatabaseManager {
                 "Environment ID : " + environmentId
         );
         System.out.println(
-                "Container ID   : " + container.getContainerId()
+                "Container ID   : "
+                        + container.getContainerId()
         );
         System.out.println(
-                "JDBC URL       : " + container.getJdbcUrl()
+                "JDBC URL       : "
+                        + container.getJdbcUrl()
         );
         System.out.println(
                 "======================================"
@@ -84,8 +88,8 @@ public class ShadowDatabaseManager {
         return container;
     }
 
-    /**
-     * Return an existing running container.
+    /*
+     * GET ACTIVE CONTAINER
      */
     public PostgreSQLContainer<?> getContainer(
             Long environmentId) {
@@ -99,11 +103,6 @@ public class ShadowDatabaseManager {
 
         if (!container.isRunning()) {
 
-            System.out.println(
-                    "Container is no longer running for environment: "
-                            + environmentId
-            );
-
             containers.remove(environmentId);
 
             return null;
@@ -112,12 +111,28 @@ public class ShadowDatabaseManager {
         return container;
     }
 
-    /**
-     * Get an existing container or create a new one.
-     *
-     * This is important because the containers map is stored
-     * only in application memory. After restarting Spring Boot,
-     * the map becomes empty.
+    /*
+     * GET CONTAINER OR FAIL
+     */
+    public PostgreSQLContainer<?> getRequiredContainer(
+            Long environmentId) {
+
+        PostgreSQLContainer<?> container =
+                getContainer(environmentId);
+
+        if (container == null) {
+
+            throw new RuntimeException(
+                    "No running shadow container found for environment: "
+                            + environmentId
+            );
+        }
+
+        return container;
+    }
+
+    /*
+     * GET OR CREATE CONTAINER
      */
     public synchronized PostgreSQLContainer<?> getOrCreateContainer(
             Long environmentId,
@@ -128,21 +143,13 @@ public class ShadowDatabaseManager {
 
         if (container != null) {
 
-            System.out.println(
-                    "Using existing shadow container for environment: "
-                            + environmentId
-            );
-
             return container;
         }
 
         System.out.println(
-                "No running shadow container found for environment: "
+                "No running shadow container found for environment "
                         + environmentId
-        );
-
-        System.out.println(
-                "Creating a new shadow container..."
+                        + ". Creating a new one."
         );
 
         return createPostgresContainer(
@@ -151,114 +158,90 @@ public class ShadowDatabaseManager {
         );
     }
 
-    /**
-     * Stop and remove a container from the map.
+    /*
+     * GET JDBC CONNECTION
      */
-    public synchronized void stopContainer(
+    public Connection getConnection(
             Long environmentId) {
 
         PostgreSQLContainer<?> container =
-                containers.remove(environmentId);
+                getRequiredContainer(environmentId);
 
-        if (container != null) {
+        try {
 
-            try {
+            return container.createConnection("");
 
-                System.out.println(
-                        "Stopping shadow container for environment: "
-                                + environmentId
-                );
+        } catch (Exception e) {
 
-                container.stop();
-
-            } catch (Exception e) {
-
-                System.err.println(
-                        "Failed to stop shadow container for environment "
-                                + environmentId
-                                + ": "
-                                + e.getMessage()
-                );
-            }
+            throw new RuntimeException(
+                    "Failed to connect to shadow database "
+                            + "for environment: "
+                            + environmentId,
+                    e
+            );
         }
     }
 
-    /**
-     * Get JDBC URL.
+    /*
+     * GET JDBC URL
+     *
+     * IMPORTANT:
+     * Testcontainers uses a dynamic host port.
+     *
+     * Example:
+     * jdbc:postgresql://localhost:55894/shadowdb
      */
     public String getJdbcUrl(
             Long environmentId) {
 
-        PostgreSQLContainer<?> container =
-                getContainer(environmentId);
-
-        if (container == null) {
-
-            throw new RuntimeException(
-                    "Container not found for environment: "
-                            + environmentId
-            );
-        }
-
-        return container.getJdbcUrl();
+        return getRequiredContainer(
+                environmentId
+        ).getJdbcUrl();
     }
 
-    /**
-     * Get username.
+    /*
+     * GET USERNAME
      */
     public String getUsername(
             Long environmentId) {
 
-        PostgreSQLContainer<?> container =
-                getContainer(environmentId);
-
-        if (container == null) {
-
-            throw new RuntimeException(
-                    "Container not found for environment: "
-                            + environmentId
-            );
-        }
-
-        return container.getUsername();
+        return getRequiredContainer(
+                environmentId
+        ).getUsername();
     }
 
-    /**
-     * Get password.
+    /*
+     * GET PASSWORD
      */
     public String getPassword(
             Long environmentId) {
 
-        PostgreSQLContainer<?> container =
-                getContainer(environmentId);
-
-        if (container == null) {
-
-            throw new RuntimeException(
-                    "Container not found for environment: "
-                            + environmentId
-            );
-        }
-
-        return container.getPassword();
+        return getRequiredContainer(
+                environmentId
+        ).getPassword();
     }
 
-    /**
-     * Get complete shadow database connection details.
+    /*
+     * GET CONTAINER ID
+     */
+    public String getContainerId(
+            Long environmentId) {
+
+        return getRequiredContainer(
+                environmentId
+        ).getContainerId();
+    }
+
+    /*
+     * GET CONNECTION DETAILS DTO
      */
     public ShadowDatabaseConnection getConnectionDetails(
             Long environmentId) {
 
         PostgreSQLContainer<?> container =
-                getContainer(environmentId);
-
-        if (container == null) {
-
-            throw new RuntimeException(
-                    "Container not found for environment: "
-                            + environmentId
-            );
-        }
+                getRequiredContainer(
+                        environmentId
+                );
 
         return new ShadowDatabaseConnection(
                 container.getJdbcUrl(),
@@ -267,8 +250,8 @@ public class ShadowDatabaseManager {
         );
     }
 
-    /**
-     * Check whether the shadow database is reachable.
+    /*
+     * VERIFY CONNECTION
      */
     public boolean verifyConnection(
             Long environmentId) {
@@ -280,14 +263,54 @@ public class ShadowDatabaseManager {
             return false;
         }
 
-        try (var connection =
-                     container.createConnection("")) {
+        try (
+                Connection connection =
+                        container.createConnection("")
+        ) {
 
             return connection.isValid(5);
 
         } catch (Exception e) {
 
             return false;
+        }
+    }
+
+    /*
+     * STOP CONTAINER
+     */
+    public synchronized void stopContainer(
+            Long environmentId) {
+
+        PostgreSQLContainer<?> container =
+                containers.remove(environmentId);
+
+        if (container == null) {
+            return;
+        }
+
+        try {
+
+            System.out.println(
+                    "Stopping shadow container for environment: "
+                            + environmentId
+            );
+
+            container.stop();
+
+            System.out.println(
+                    "Shadow container stopped for environment: "
+                            + environmentId
+            );
+
+        } catch (Exception e) {
+
+            System.err.println(
+                    "Failed to stop shadow container for environment "
+                            + environmentId
+                            + ": "
+                            + e.getMessage()
+            );
         }
     }
 }
