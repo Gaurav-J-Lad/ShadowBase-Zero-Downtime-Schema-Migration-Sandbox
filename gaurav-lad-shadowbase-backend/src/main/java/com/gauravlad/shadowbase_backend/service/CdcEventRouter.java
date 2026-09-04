@@ -6,13 +6,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class CdcEventRouter {
 
-    private final CdcEventApplier cdcEventApplier;
+    private final CustomerCdcApplier customerCdcApplier;
 
     public CdcEventRouter(
-            CdcEventApplier cdcEventApplier) {
+            CustomerCdcApplier customerCdcApplier) {
 
-        this.cdcEventApplier =
-                cdcEventApplier;
+        this.customerCdcApplier =
+                customerCdcApplier;
     }
 
     /*
@@ -89,66 +89,105 @@ public class CdcEventRouter {
 
         switch (operation) {
 
+            /*
+             * INSERT
+             */
             case "c" -> {
 
                 JsonNode after =
                         payload.get("after");
 
-                if (after != null &&
-                        !after.isNull()) {
+                if (after == null ||
+                        after.isNull()) {
 
-                    cdcEventApplier.applyInsert(
-                            environmentId,
-                            after
+                    System.out.println(
+                            "INSERT event has no 'after' data."
                     );
+
+                    return;
                 }
+
+                customerCdcApplier.applyInsert(
+                        environmentId,
+                        after
+                );
             }
 
+            /*
+             * UPDATE
+             */
             case "u" -> {
 
                 JsonNode after =
                         payload.get("after");
 
-                if (after != null &&
-                        !after.isNull()) {
+                if (after == null ||
+                        after.isNull()) {
 
-                    cdcEventApplier.applyUpdate(
-                            environmentId,
-                            after
+                    System.out.println(
+                            "UPDATE event has no 'after' data."
                     );
+
+                    return;
                 }
+
+                customerCdcApplier.applyUpdate(
+                        environmentId,
+                        after
+                );
             }
 
+            /*
+             * DELETE
+             */
             case "d" -> {
 
                 JsonNode before =
                         payload.get("before");
 
-                if (before != null &&
-                        !before.isNull()) {
+                if (before == null ||
+                        before.isNull()) {
 
-                    cdcEventApplier.applyDelete(
-                            environmentId,
-                            before
+                    System.out.println(
+                            "DELETE event has no 'before' data."
                     );
+
+                    return;
                 }
+
+                customerCdcApplier.applyDelete(
+                        environmentId,
+                        before
+                );
             }
 
+            /*
+             * SNAPSHOT
+             */
             case "r" -> {
 
                 JsonNode after =
                         payload.get("after");
 
-                if (after != null &&
-                        !after.isNull()) {
+                if (after == null ||
+                        after.isNull()) {
 
-                    cdcEventApplier.applyInsert(
-                            environmentId,
-                            after
+                    System.out.println(
+                            "SNAPSHOT event has no 'after' data."
                     );
+
+                    return;
                 }
+
+                customerCdcApplier.applyInsert(
+                        environmentId,
+                        after
+                );
             }
 
+            /*
+             * Unknown operation
+             */
             default ->
                     System.out.println(
                             "Unknown CDC operation: "
