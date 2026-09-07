@@ -7,16 +7,26 @@ import org.springframework.stereotype.Service;
 public class CdcEventRouter {
 
     private final CustomerCdcApplier customerCdcApplier;
+    private final ProductCdcApplier productCdcApplier;
+    private final OrderCdcApplier orderCdcApplier;
 
     public CdcEventRouter(
-            CustomerCdcApplier customerCdcApplier) {
+            CustomerCdcApplier customerCdcApplier,
+            ProductCdcApplier productCdcApplier,
+            OrderCdcApplier orderCdcApplier) {
 
         this.customerCdcApplier =
                 customerCdcApplier;
+
+        this.productCdcApplier =
+                productCdcApplier;
+
+        this.orderCdcApplier =
+                orderCdcApplier;
     }
 
     /*
-     * Route a CDC event to the correct table handler.
+     * Route CDC event to the correct table handler.
      */
     public void route(
             Long environmentId,
@@ -58,6 +68,18 @@ public class CdcEventRouter {
                             payload
                     );
 
+            case "products" ->
+                    routeProducts(
+                            environmentId,
+                            payload
+                    );
+
+            case "orders" ->
+                    routeOrders(
+                            environmentId,
+                            payload
+                    );
+
             default ->
                     System.out.println(
                             "No CDC handler configured for table: "
@@ -73,6 +95,245 @@ public class CdcEventRouter {
             Long environmentId,
             JsonNode payload) {
 
+        String operation =
+                getOperation(payload);
+
+        switch (operation) {
+
+            case "c" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                customerCdcApplier.applyInsert(
+                        environmentId,
+                        after
+                );
+            }
+
+            case "u" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                customerCdcApplier.applyUpdate(
+                        environmentId,
+                        after
+                );
+            }
+
+            case "d" -> {
+
+                JsonNode before =
+                        getBefore(payload);
+
+                if (before == null) {
+                    return;
+                }
+
+                customerCdcApplier.applyDelete(
+                        environmentId,
+                        before
+                );
+            }
+
+            case "r" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                customerCdcApplier.applyInsert(
+                        environmentId,
+                        after
+                );
+            }
+
+            default ->
+                    logUnknownOperation(
+                            operation,
+                            "customers"
+                    );
+        }
+    }
+
+    /*
+     * Route products table events.
+     */
+    private void routeProducts(
+            Long environmentId,
+            JsonNode payload) {
+
+        String operation =
+                getOperation(payload);
+
+        switch (operation) {
+
+            case "c" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                productCdcApplier.applyInsert(
+                        environmentId,
+                        after
+                );
+            }
+
+            case "u" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                productCdcApplier.applyUpdate(
+                        environmentId,
+                        after
+                );
+            }
+
+            case "d" -> {
+
+                JsonNode before =
+                        getBefore(payload);
+
+                if (before == null) {
+                    return;
+                }
+
+                productCdcApplier.applyDelete(
+                        environmentId,
+                        before
+                );
+            }
+
+            case "r" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                productCdcApplier.applyInsert(
+                        environmentId,
+                        after
+                );
+            }
+
+            default ->
+                    logUnknownOperation(
+                            operation,
+                            "products"
+                    );
+        }
+    }
+
+    /*
+     * Route orders table events.
+     */
+    private void routeOrders(
+            Long environmentId,
+            JsonNode payload) {
+
+        String operation =
+                getOperation(payload);
+
+        switch (operation) {
+
+            case "c" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                orderCdcApplier.applyInsert(
+                        environmentId,
+                        after
+                );
+            }
+
+            case "u" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                orderCdcApplier.applyUpdate(
+                        environmentId,
+                        after
+                );
+            }
+
+            case "d" -> {
+
+                JsonNode before =
+                        getBefore(payload);
+
+                if (before == null) {
+                    return;
+                }
+
+                orderCdcApplier.applyDelete(
+                        environmentId,
+                        before
+                );
+            }
+
+            case "r" -> {
+
+                JsonNode after =
+                        getAfter(payload);
+
+                if (after == null) {
+                    return;
+                }
+
+                orderCdcApplier.applyInsert(
+                        environmentId,
+                        after
+                );
+            }
+
+            default ->
+                    logUnknownOperation(
+                            operation,
+                            "orders"
+                    );
+        }
+    }
+
+    /*
+     * Get CDC operation.
+     */
+    private String getOperation(
+            JsonNode payload) {
+
         JsonNode operationNode =
                 payload.get("op");
 
@@ -84,115 +345,66 @@ public class CdcEventRouter {
             );
         }
 
-        String operation =
-                operationNode.asText();
+        return operationNode.asText();
+    }
 
-        switch (operation) {
+    /*
+     * Get 'after' data.
+     */
+    private JsonNode getAfter(
+            JsonNode payload) {
 
-            /*
-             * INSERT
-             */
-            case "c" -> {
+        JsonNode after =
+                payload.get("after");
 
-                JsonNode after =
-                        payload.get("after");
+        if (after == null ||
+                after.isNull()) {
 
-                if (after == null ||
-                        after.isNull()) {
+            System.out.println(
+                    "CDC event has no 'after' data."
+            );
 
-                    System.out.println(
-                            "INSERT event has no 'after' data."
-                    );
-
-                    return;
-                }
-
-                customerCdcApplier.applyInsert(
-                        environmentId,
-                        after
-                );
-            }
-
-            /*
-             * UPDATE
-             */
-            case "u" -> {
-
-                JsonNode after =
-                        payload.get("after");
-
-                if (after == null ||
-                        after.isNull()) {
-
-                    System.out.println(
-                            "UPDATE event has no 'after' data."
-                    );
-
-                    return;
-                }
-
-                customerCdcApplier.applyUpdate(
-                        environmentId,
-                        after
-                );
-            }
-
-            /*
-             * DELETE
-             */
-            case "d" -> {
-
-                JsonNode before =
-                        payload.get("before");
-
-                if (before == null ||
-                        before.isNull()) {
-
-                    System.out.println(
-                            "DELETE event has no 'before' data."
-                    );
-
-                    return;
-                }
-
-                customerCdcApplier.applyDelete(
-                        environmentId,
-                        before
-                );
-            }
-
-            /*
-             * SNAPSHOT
-             */
-            case "r" -> {
-
-                JsonNode after =
-                        payload.get("after");
-
-                if (after == null ||
-                        after.isNull()) {
-
-                    System.out.println(
-                            "SNAPSHOT event has no 'after' data."
-                    );
-
-                    return;
-                }
-
-                customerCdcApplier.applyInsert(
-                        environmentId,
-                        after
-                );
-            }
-
-            /*
-             * Unknown operation
-             */
-            default ->
-                    System.out.println(
-                            "Unknown CDC operation: "
-                                    + operation
-                    );
+            return null;
         }
+
+        return after;
+    }
+
+    /*
+     * Get 'before' data.
+     */
+    private JsonNode getBefore(
+            JsonNode payload) {
+
+        JsonNode before =
+                payload.get("before");
+
+        if (before == null ||
+                before.isNull()) {
+
+            System.out.println(
+                    "CDC event has no 'before' data."
+            );
+
+            return null;
+        }
+
+        return before;
+    }
+
+    /*
+     * Log unknown operation.
+     */
+    private void logUnknownOperation(
+            String operation,
+            String tableName) {
+
+        System.out.println(
+                "Unknown CDC operation '"
+                        + operation
+                        + "' for table '"
+                        + tableName
+                        + "'"
+        );
     }
 }
