@@ -23,7 +23,11 @@ public class CdcEventConsumer {
     }
 
     @KafkaListener(
-            topics = "shadowbase.public.customers",
+            topics = {
+                    "shadowbase.public.customers",
+                    "shadowbase.public.products",
+                    "shadowbase.public.orders"
+            },
             groupId = "shadowbase-cdc-consumer"
     )
     public void consume(String message) {
@@ -31,25 +35,41 @@ public class CdcEventConsumer {
         try {
 
             System.out.println(
-                    "Received CDC message: " + message
+                    "========================================"
             );
 
-            // Convert Kafka JSON into CdcEvent
+            System.out.println(
+                    "Received CDC event:"
+            );
+
+            System.out.println(message);
+
             CdcEvent event =
                     objectMapper.readValue(
                             message,
                             CdcEvent.class
                     );
 
-            // Find the currently running shadow environment
             Long environmentId =
                     environmentResolver
                             .resolveTargetEnvironment();
 
-            // Send event to router
+            System.out.println(
+                    "Resolved target environment: "
+                            + environmentId
+            );
+
             cdcEventRouter.route(
                     environmentId,
                     event
+            );
+
+            System.out.println(
+                    "CDC event successfully processed"
+            );
+
+            System.out.println(
+                    "========================================"
             );
 
         } catch (Exception e) {
