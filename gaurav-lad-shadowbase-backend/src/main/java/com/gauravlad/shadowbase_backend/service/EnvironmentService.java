@@ -16,20 +16,27 @@ public class EnvironmentService {
     private final EnvironmentRepository environmentRepository;
     private final ShadowDatabaseManager shadowDatabaseManager;
     private final ShadowDatabaseSchemaInitializer schemaInitializer;
+    private final ShadowDatabaseSnapshotService snapshotService;
 
     public EnvironmentService(
             EnvironmentRepository environmentRepository,
             ShadowDatabaseManager shadowDatabaseManager,
-            ShadowDatabaseSchemaInitializer schemaInitializer) {
+            ShadowDatabaseSchemaInitializer schemaInitializer,
+            ShadowDatabaseSnapshotService snapshotService) {
 
-        this.environmentRepository = environmentRepository;
-        this.shadowDatabaseManager = shadowDatabaseManager;
-        this.schemaInitializer = schemaInitializer;
+        this.environmentRepository =
+                environmentRepository;
+
+        this.shadowDatabaseManager =
+                shadowDatabaseManager;
+
+        this.schemaInitializer =
+                schemaInitializer;
+
+        this.snapshotService =
+                snapshotService;
     }
 
-    /*
-     * CREATE ENVIRONMENT
-     */
     public Environment createEnvironment(
             CreateEnvironmentRequest request) {
 
@@ -42,18 +49,11 @@ public class EnvironmentService {
                         .createdAt(LocalDateTime.now())
                         .build();
 
-        /*
-         * Save first so that the environment
-         * gets its database ID.
-         */
         environment =
                 environmentRepository.save(environment);
 
         try {
 
-            /*
-             * Currently we support PostgreSQL.
-             */
             if ("POSTGRESQL".equalsIgnoreCase(
                     request.databaseType())) {
 
@@ -63,9 +63,6 @@ public class EnvironmentService {
                                 + environment.getId()
                 );
 
-                /*
-                 * Create Testcontainers PostgreSQL.
-                 */
                 var container =
                         shadowDatabaseManager
                                 .createPostgresContainer(
@@ -74,21 +71,25 @@ public class EnvironmentService {
                                 );
 
                 System.out.println(
-                        "Shadow PostgreSQL container started."
-                );
-
-                System.out.println(
-                        "Container ID: "
+                        "Shadow container started: "
                                 + container.getContainerId()
                 );
 
                 /*
-                 * IMPORTANT:
-                 *
-                 * Save the container ID immediately.
-                 *
-                 * This allows the environment to know
-                 * which shadow database belongs to it.
+                 * Step 1:
+                 * Initialize shadow database schema.
+                 */
+                schemaInitializer.initialize(
+                        container
+                );
+
+                System.out.println(
+                        "Shadow database schema initialized"
+                );
+
+                /*
+                 * Step 2:
+                 * Store container ID.
                  */
                 environment.setContainerId(
                         container.getContainerId()
@@ -100,26 +101,25 @@ public class EnvironmentService {
                         );
 
                 /*
-                 * Initialize shadow database schema.
-                 *
-                 * Tables:
-                 *
-                 * customers
-                 * products
-                 * orders
+                 * Step 3:
+                 * Copy existing production data
+                 * into the shadow database.
                  */
                 System.out.println(
-                        "Initializing shadow database schema..."
+                        "Starting initial database snapshot..."
                 );
 
-                schemaInitializer.initialize(container);
+                snapshotService.createSnapshot(
+                        environment.getId()
+                );
 
                 System.out.println(
-                        "Shadow database schema initialized."
+                        "Initial database snapshot completed"
                 );
 
                 /*
-                 * Environment is now ready.
+                 * Step 4:
+                 * Environment is ready.
                  */
                 environment.setStatus(
                         "RUNNING"
@@ -130,37 +130,14 @@ public class EnvironmentService {
                                 environment
                         );
 
-                System.out.println();
                 System.out.println(
-                        "======================================"
-                );
-                System.out.println(
-                        "SHADOW DATABASE READY"
-                );
-                System.out.println(
-                        "Environment ID : "
+                        "Environment "
                                 + environment.getId()
-                );
-                System.out.println(
-                        "Container ID   : "
-                                + environment.getContainerId()
-                );
-                System.out.println(
-                        "Status         : "
-                                + environment.getStatus()
-                );
-                System.out.println(
-                        "======================================"
+                                + " is RUNNING"
                 );
 
             } else {
 
-                /*
-                 * For currently unsupported database types,
-                 * keep the environment record RUNNING.
-                 *
-                 * We can add other database types later.
-                 */
                 environment.setStatus(
                         "RUNNING"
                 );
@@ -176,36 +153,16 @@ public class EnvironmentService {
         } catch (Exception e) {
 
             System.err.println(
-                    "======================================"
-            );
-
-            System.err.println(
-                    "ENVIRONMENT CREATION FAILED"
-            );
-
-            System.err.println(
-                    "Environment ID: "
+                    "Environment creation failed for ID "
                             + environment.getId()
-            );
-
-            System.err.println(
-                    "======================================"
             );
 
             e.printStackTrace();
 
-            /*
-             * Cleanup Testcontainers container
-             * if it was successfully created.
-             */
             try {
 
                 shadowDatabaseManager.stopContainer(
                         environment.getId()
-                );
-
-                System.out.println(
-                        "Shadow container cleanup completed."
                 );
 
             } catch (Exception cleanupException) {
@@ -216,11 +173,6 @@ public class EnvironmentService {
                 );
             }
 
-            /*
-             * Keep the environment record.
-             *
-             * This is useful for debugging.
-             */
             environment.setStatus(
                     "FAILED"
             );
@@ -237,18 +189,13 @@ public class EnvironmentService {
         }
     }
 
-    /*
-     * GET ALL ENVIRONMENTS
-     */
     public List<Environment> getAllEnvironments() {
 
         return environmentRepository.findAll();
     }
 
-    /*
-     * GET ENVIRONMENT BY ID
-     */
-    public Environment getEnvironmentById(Long id) {
+    public Environment getEnvironmentById(
+            Long id) {
 
         return environmentRepository
                 .findById(id)
@@ -260,39 +207,21 @@ public class EnvironmentService {
                 );
     }
 
-    /*
-     * DELETE ENVIRONMENT
-     */
-    public void deleteEnvironment(Long id) {
+    public void deleteEnvironment(
+            Long id) {
 
         Environment environment =
                 getEnvironmentById(id);
 
-        /*
-         * Stop Testcontainers container
-         * before deleting the environment record.
-         */
         if (environment.getContainerId() != null) {
 
-            System.out.println(
-                    "Stopping shadow container for environment "
-                            + id
+            shadowDatabaseManager.stopContainer(
+                    id
             );
-
-            shadowDatabaseManager.stopContainer(id);
         }
 
-        /*
-         * Delete environment record.
-         */
         environmentRepository.delete(
                 environment
-        );
-
-        System.out.println(
-                "Environment "
-                        + id
-                        + " deleted."
         );
     }
 }
