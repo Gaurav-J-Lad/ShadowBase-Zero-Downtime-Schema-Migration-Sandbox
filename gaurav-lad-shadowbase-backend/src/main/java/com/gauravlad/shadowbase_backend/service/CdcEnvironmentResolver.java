@@ -16,26 +16,61 @@ public class CdcEnvironmentResolver {
                 environmentRepository;
     }
 
-    /*
-     * Resolve the shadow environment that should
-     * receive the CDC event.
-     */
-    public Long resolveTargetEnvironment() {
+    public Long resolveTargetEnvironment(
+            String sourceDatabase,
+            String sourceSchema) {
 
         return environmentRepository
                 .findAll()
                 .stream()
+                .filter(this::isCdcReady)
                 .filter(environment ->
-                        "RUNNING".equalsIgnoreCase(
-                                environment.getStatus()
+                        matchesSource(
+                                environment,
+                                sourceDatabase,
+                                sourceSchema
                         )
                 )
                 .findFirst()
                 .map(Environment::getId)
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "No RUNNING shadow environment found"
+                                "No CDC-ready environment found for "
+                                        + "database="
+                                        + sourceDatabase
+                                        + ", schema="
+                                        + sourceSchema
                         )
                 );
+    }
+
+    private boolean isCdcReady(
+            Environment environment) {
+
+        String status =
+                environment.getStatus();
+
+        return "SYNCING".equalsIgnoreCase(status)
+                || "RUNNING".equalsIgnoreCase(status);
+    }
+
+    private boolean matchesSource(
+            Environment environment,
+            String sourceDatabase,
+            String sourceSchema) {
+
+        boolean databaseMatches =
+                sourceDatabase != null
+                        && sourceDatabase.equals(
+                        environment.getSourceDatabase()
+                );
+
+        boolean schemaMatches =
+                sourceSchema == null
+                        || sourceSchema.equals(
+                        environment.getSourceSchema()
+                );
+
+        return databaseMatches && schemaMatches;
     }
 }

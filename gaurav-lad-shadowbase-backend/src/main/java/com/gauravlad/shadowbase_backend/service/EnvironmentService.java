@@ -45,9 +45,12 @@ public class EnvironmentService {
                         .name(request.name())
                         .databaseType(request.databaseType())
                         .databaseVersion(request.databaseVersion())
+                        .sourceDatabase(request.sourceDatabase())
+                        .sourceSchema(request.sourceSchema())
                         .status("CREATING")
                         .createdAt(LocalDateTime.now())
                         .build();
+
 
         environment =
                 environmentRepository.save(environment);
@@ -76,8 +79,7 @@ public class EnvironmentService {
                 );
 
                 /*
-                 * Step 1:
-                 * Initialize shadow database schema.
+                 * Initialize the shadow database schema.
                  */
                 schemaInitializer.initialize(
                         container
@@ -87,12 +89,18 @@ public class EnvironmentService {
                         "Shadow database schema initialized"
                 );
 
-                /*
-                 * Step 2:
-                 * Store container ID.
-                 */
                 environment.setContainerId(
                         container.getContainerId()
+                );
+
+                /*
+                 * Mark environment as SYNCING.
+                 *
+                 * CDC is allowed to process events while
+                 * the initial snapshot is being created.
+                 */
+                environment.setStatus(
+                        "SYNCING"
                 );
 
                 environment =
@@ -100,10 +108,14 @@ public class EnvironmentService {
                                 environment
                         );
 
+                System.out.println(
+                        "Environment "
+                                + environment.getId()
+                                + " is SYNCING"
+                );
+
                 /*
-                 * Step 3:
-                 * Copy existing production data
-                 * into the shadow database.
+                 * Copy the current production state.
                  */
                 System.out.println(
                         "Starting initial database snapshot..."
@@ -118,8 +130,9 @@ public class EnvironmentService {
                 );
 
                 /*
-                 * Step 4:
-                 * Environment is ready.
+                 * Snapshot is complete.
+                 * CDC continues keeping the shadow database
+                 * synchronized.
                  */
                 environment.setStatus(
                         "RUNNING"

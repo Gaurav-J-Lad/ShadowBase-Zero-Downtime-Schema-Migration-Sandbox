@@ -49,10 +49,31 @@ public class CdcEventConsumer {
                             message,
                             CdcEvent.class
                     );
+            CdcEvent.CdcSource source =
+                    event.source();
+
+            if (source == null) {
+                throw new RuntimeException(
+                        "CDC event has no source information"
+                );
+            }
 
             Long environmentId =
                     environmentResolver
-                            .resolveTargetEnvironment();
+                            .resolveTargetEnvironment(
+                                    source.database(),
+                                    source.schema()
+                            );
+
+            System.out.println(
+                    "Resolved target environment: "
+                            + environmentId
+            );
+
+            cdcEventRouter.route(
+                    environmentId,
+                    event
+            );
 
             System.out.println(
                     "Resolved target environment: "
