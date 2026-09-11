@@ -23,11 +23,7 @@ public class CdcEventConsumer {
     }
 
     @KafkaListener(
-            topics = {
-                    "shadowbase.public.customers",
-                    "shadowbase.public.products",
-                    "shadowbase.public.orders"
-            },
+            topicPattern = "shadowbase\\.public\\..*",
             groupId = "shadowbase-cdc-consumer"
     )
     public void consume(String message) {
@@ -49,31 +45,25 @@ public class CdcEventConsumer {
                             message,
                             CdcEvent.class
                     );
-            CdcEvent.CdcSource source =
-                    event.source();
 
-            if (source == null) {
+            if (event.source() == null) {
                 throw new RuntimeException(
                         "CDC event has no source information"
                 );
             }
 
+            String sourceDatabase =
+                    event.source().database();
+
+            String sourceSchema =
+                    event.source().schema();
+
             Long environmentId =
                     environmentResolver
                             .resolveTargetEnvironment(
-                                    source.database(),
-                                    source.schema()
+                                    sourceDatabase,
+                                    sourceSchema
                             );
-
-            System.out.println(
-                    "Resolved target environment: "
-                            + environmentId
-            );
-
-            cdcEventRouter.route(
-                    environmentId,
-                    event
-            );
 
             System.out.println(
                     "Resolved target environment: "

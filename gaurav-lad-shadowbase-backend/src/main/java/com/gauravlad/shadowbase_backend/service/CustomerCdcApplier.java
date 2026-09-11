@@ -9,7 +9,8 @@ import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 
 @Service
-public class CustomerCdcApplier {
+public class CustomerCdcApplier
+        implements CdcTableApplier {
 
     private final ShadowDatabaseManager shadowDatabaseManager;
 
@@ -20,15 +21,17 @@ public class CustomerCdcApplier {
                 shadowDatabaseManager;
     }
 
-    /*
-     * INSERT
-     */
+    @Override
+    public String getTableName() {
+        return "customers";
+    }
+
+    @Override
     public void applyInsert(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 INSERT INTO customers
                 (id, name, email, created_at)
                 VALUES (?, ?, ?, ?)
@@ -69,7 +72,8 @@ public class CustomerCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Customer INSERT applied. Rows affected: "
+                    "Customer INSERT applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -82,15 +86,12 @@ public class CustomerCdcApplier {
         }
     }
 
-    /*
-     * UPDATE
-     */
+    @Override
     public void applyUpdate(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 UPDATE customers
                 SET
                     name = ?,
@@ -133,7 +134,8 @@ public class CustomerCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Customer UPDATE applied. Rows affected: "
+                    "Customer UPDATE applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -146,15 +148,12 @@ public class CustomerCdcApplier {
         }
     }
 
-    /*
-     * DELETE
-     */
+    @Override
     public void applyDelete(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 DELETE FROM customers
                 WHERE id = ?
                 """;
@@ -177,7 +176,8 @@ public class CustomerCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Customer DELETE applied. Rows affected: "
+                    "Customer DELETE applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -190,9 +190,6 @@ public class CustomerCdcApplier {
         }
     }
 
-    /*
-     * Get String value
-     */
     private String getText(
             JsonNode data,
             String field) {
@@ -207,9 +204,6 @@ public class CustomerCdcApplier {
         return node.asText();
     }
 
-    /*
-     * Get Long value
-     */
     private Long getLong(
             JsonNode data,
             String field) {
@@ -220,20 +214,19 @@ public class CustomerCdcApplier {
         if (node == null || node.isNull()) {
 
             throw new RuntimeException(
-                    "CDC field missing: " + field
+                    "CDC field missing: "
+                            + field
             );
         }
 
         return node.asLong();
     }
 
-    /*
-     * Set created_at timestamp
-     */
     private void setTimestamp(
             PreparedStatement statement,
             int parameterIndex,
-            JsonNode data) throws Exception {
+            JsonNode data)
+            throws Exception {
 
         String createdAt =
                 getText(
