@@ -1,4 +1,4 @@
-package com.gauravlad.shadowbase_backend.service;
+ package com.gauravlad.shadowbase_backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.gauravlad.shadowbase_backend.environment.ShadowDatabaseManager;
@@ -10,7 +10,8 @@ import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 
 @Service
-public class ProductCdcApplier {
+public class ProductCdcApplier
+        implements CdcTableApplier {
 
     private final ShadowDatabaseManager shadowDatabaseManager;
 
@@ -21,15 +22,17 @@ public class ProductCdcApplier {
                 shadowDatabaseManager;
     }
 
-    /*
-     * INSERT
-     */
+    @Override
+    public String getTableName() {
+        return "products";
+    }
+
+    @Override
     public void applyInsert(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 INSERT INTO products
                 (id, name, price, created_at)
                 VALUES (?, ?, ?, ?)
@@ -73,7 +76,8 @@ public class ProductCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Product INSERT applied. Rows affected: "
+                    "Product INSERT applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -86,15 +90,12 @@ public class ProductCdcApplier {
         }
     }
 
-    /*
-     * UPDATE
-     */
+    @Override
     public void applyUpdate(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 UPDATE products
                 SET
                     name = ?,
@@ -140,7 +141,8 @@ public class ProductCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Product UPDATE applied. Rows affected: "
+                    "Product UPDATE applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -153,15 +155,12 @@ public class ProductCdcApplier {
         }
     }
 
-    /*
-     * DELETE
-     */
+    @Override
     public void applyDelete(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 DELETE FROM products
                 WHERE id = ?
                 """;
@@ -184,7 +183,8 @@ public class ProductCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Product DELETE applied. Rows affected: "
+                    "Product DELETE applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -197,9 +197,6 @@ public class ProductCdcApplier {
         }
     }
 
-    /*
-     * Get String
-     */
     private String getText(
             JsonNode data,
             String field) {
@@ -214,9 +211,6 @@ public class ProductCdcApplier {
         return node.asText();
     }
 
-    /*
-     * Get Long
-     */
     private Long getLong(
             JsonNode data,
             String field) {
@@ -227,21 +221,20 @@ public class ProductCdcApplier {
         if (node == null || node.isNull()) {
 
             throw new RuntimeException(
-                    "CDC field missing: " + field
+                    "CDC field missing: "
+                            + field
             );
         }
 
         return node.asLong();
     }
 
-    /*
-     * Set decimal value
-     */
     private void setDecimal(
             PreparedStatement statement,
             int parameterIndex,
             JsonNode data,
-            String field) throws Exception {
+            String field)
+            throws Exception {
 
         JsonNode node =
                 data.get(field);
@@ -269,14 +262,12 @@ public class ProductCdcApplier {
         );
     }
 
-    /*
-     * Set timestamp
-     */
     private void setTimestamp(
             PreparedStatement statement,
             int parameterIndex,
             JsonNode data,
-            String field) throws Exception {
+            String field)
+            throws Exception {
 
         JsonNode node =
                 data.get(field);
@@ -291,15 +282,13 @@ public class ProductCdcApplier {
             return;
         }
 
-        String value =
-                node.asText();
-
         Timestamp timestamp =
                 Timestamp.valueOf(
-                        value.replace(
-                                "T",
-                                " "
-                        )
+                        node.asText()
+                                .replace(
+                                        "T",
+                                        " "
+                                )
                 );
 
         statement.setTimestamp(

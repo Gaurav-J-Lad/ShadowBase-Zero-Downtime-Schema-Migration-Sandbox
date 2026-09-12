@@ -10,7 +10,8 @@ import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 
 @Service
-public class OrderCdcApplier {
+public class OrderCdcApplier
+        implements CdcTableApplier {
 
     private final ShadowDatabaseManager shadowDatabaseManager;
 
@@ -21,15 +22,17 @@ public class OrderCdcApplier {
                 shadowDatabaseManager;
     }
 
-    /*
-     * INSERT
-     */
+    @Override
+    public String getTableName() {
+        return "orders";
+    }
+
+    @Override
     public void applyInsert(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 INSERT INTO orders
                 (
                     id,
@@ -90,7 +93,8 @@ public class OrderCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Order INSERT applied. Rows affected: "
+                    "Order INSERT applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -103,15 +107,12 @@ public class OrderCdcApplier {
         }
     }
 
-    /*
-     * UPDATE
-     */
+    @Override
     public void applyUpdate(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 UPDATE orders
                 SET
                     customer_id = ?,
@@ -169,7 +170,8 @@ public class OrderCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Order UPDATE applied. Rows affected: "
+                    "Order UPDATE applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -182,15 +184,12 @@ public class OrderCdcApplier {
         }
     }
 
-    /*
-     * DELETE
-     */
+    @Override
     public void applyDelete(
             Long environmentId,
             JsonNode data) {
 
-        String sql =
-                """
+        String sql = """
                 DELETE FROM orders
                 WHERE id = ?
                 """;
@@ -213,7 +212,8 @@ public class OrderCdcApplier {
                     statement.executeUpdate();
 
             System.out.println(
-                    "Order DELETE applied. Rows affected: "
+                    "Order DELETE applied. "
+                            + "Rows affected: "
                             + rows
             );
 
@@ -226,9 +226,6 @@ public class OrderCdcApplier {
         }
     }
 
-    /*
-     * Get Long
-     */
     private Long getLong(
             JsonNode data,
             String field) {
@@ -239,16 +236,14 @@ public class OrderCdcApplier {
         if (node == null || node.isNull()) {
 
             throw new RuntimeException(
-                    "CDC field missing: " + field
+                    "CDC field missing: "
+                            + field
             );
         }
 
         return node.asLong();
     }
 
-    /*
-     * Get Integer
-     */
     private Integer getInteger(
             JsonNode data,
             String field) {
@@ -259,21 +254,20 @@ public class OrderCdcApplier {
         if (node == null || node.isNull()) {
 
             throw new RuntimeException(
-                    "CDC field missing: " + field
+                    "CDC field missing: "
+                            + field
             );
         }
 
         return node.asInt();
     }
 
-    /*
-     * Set decimal
-     */
     private void setDecimal(
             PreparedStatement statement,
             int parameterIndex,
             JsonNode data,
-            String field) throws Exception {
+            String field)
+            throws Exception {
 
         JsonNode node =
                 data.get(field);
@@ -301,14 +295,12 @@ public class OrderCdcApplier {
         );
     }
 
-    /*
-     * Set timestamp
-     */
     private void setTimestamp(
             PreparedStatement statement,
             int parameterIndex,
             JsonNode data,
-            String field) throws Exception {
+            String field)
+            throws Exception {
 
         JsonNode node =
                 data.get(field);

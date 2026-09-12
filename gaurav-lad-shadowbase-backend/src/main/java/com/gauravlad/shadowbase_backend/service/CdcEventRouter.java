@@ -1,23 +1,35 @@
 package com.gauravlad.shadowbase_backend.service;
 
 import com.gauravlad.shadowbase_backend.dto.CdcEvent;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class CdcEventRouter {
 
-    private final CustomerCdcApplier customerCdcApplier;
-    private final ProductCdcApplier productCdcApplier;
-    private final OrderCdcApplier orderCdcApplier;
+    private final Map<String, CdcTableApplier> appliers;
 
     public CdcEventRouter(
-            CustomerCdcApplier customerCdcApplier,
-            ProductCdcApplier productCdcApplier,
-            OrderCdcApplier orderCdcApplier) {
+            List<CdcTableApplier> appliers) {
 
-        this.customerCdcApplier = customerCdcApplier;
-        this.productCdcApplier = productCdcApplier;
-        this.orderCdcApplier = orderCdcApplier;
+        this.appliers =
+                appliers.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        CdcTableApplier::getTableName,
+                                        Function.identity()
+                                )
+                        );
+
+        System.out.println(
+                "Registered CDC table appliers: "
+                        + this.appliers.keySet()
+        );
     }
 
     public void route(
@@ -25,211 +37,125 @@ public class CdcEventRouter {
             CdcEvent event) {
 
         if (event.source() == null) {
+
             throw new RuntimeException(
                     "CDC event has no source information"
             );
         }
 
-        String tableName = event.source().table();
+        String tableName =
+                event.source().table();
 
-        if (tableName == null || tableName.isBlank()) {
+        if (tableName == null
+                || tableName.isBlank()) {
+
             throw new RuntimeException(
                     "CDC event has no table information"
             );
+        }
+
+        String operation =
+                event.operation();
+
+        if (operation == null
+                || operation.isBlank()) {
+
+            throw new RuntimeException(
+                    "CDC event has no operation"
+            );
+        }
+
+        CdcTableApplier applier =
+                appliers.get(tableName);
+
+        if (applier == null) {
+
+            System.out.println(
+                    "No CDC handler configured for table: "
+                            + tableName
+            );
+
+            return;
         }
 
         System.out.println(
                 "CDC Table: " + tableName
         );
 
-        switch (tableName) {
+        System.out.println(
+                "CDC Operation: " + operation
+        );
 
-            case "customers" ->
-                    routeCustomers(
-                            environmentId,
-                            event
-                    );
+        switch (operation) {
 
-            case "products" ->
-                    routeProducts(
-                            environmentId,
-                            event
-                    );
+            case "c" -> {
 
-            case "orders" ->
-                    routeOrders(
-                            environmentId,
-                            event
-                    );
+                JsonNode after =
+                        event.after();
+
+                if (after == null) {
+                    return;
+                }
+
+                applier.applyInsert(
+                        environmentId,
+                        after
+                );
+            }
+
+            case "u" -> {
+
+                JsonNode after =
+                        event.after();
+
+                if (after == null) {
+                    return;
+                }
+
+                applier.applyUpdate(
+                        environmentId,
+                        after
+                );
+            }
+
+            case "d" -> {
+
+                JsonNode before =
+                        event.before();
+
+                if (before == null) {
+                    return;
+                }
+
+                applier.applyDelete(
+                        environmentId,
+                        before
+                );
+            }
+
+            case "r" -> {
+
+                JsonNode after =
+                        event.after();
+
+                if (after == null) {
+                    return;
+                }
+
+                applier.applyInsert(
+                        environmentId,
+                        after
+                );
+            }
 
             default ->
                     System.out.println(
-                            "No CDC handler configured for table: "
+                            "Unknown CDC operation '"
+                                    + operation
+                                    + "' for table '"
                                     + tableName
+                                    + "'"
                     );
         }
-    }
-
-    private void routeCustomers(
-            Long environmentId,
-            CdcEvent event) {
-
-        switch (event.operation()) {
-
-            case "c" -> {
-                if (event.after() == null) return;
-
-                customerCdcApplier.applyInsert(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            case "u" -> {
-                if (event.after() == null) return;
-
-                customerCdcApplier.applyUpdate(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            case "d" -> {
-                if (event.before() == null) return;
-
-                customerCdcApplier.applyDelete(
-                        environmentId,
-                        event.before()
-                );
-            }
-
-            case "r" -> {
-                if (event.after() == null) return;
-
-                customerCdcApplier.applyInsert(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            default ->
-                    logUnknownOperation(
-                            event.operation(),
-                            "customers"
-                    );
-        }
-    }
-
-    private void routeProducts(
-            Long environmentId,
-            CdcEvent event) {
-
-        switch (event.operation()) {
-
-            case "c" -> {
-                if (event.after() == null) return;
-
-                productCdcApplier.applyInsert(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            case "u" -> {
-                if (event.after() == null) return;
-
-                productCdcApplier.applyUpdate(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            case "d" -> {
-                if (event.before() == null) return;
-
-                productCdcApplier.applyDelete(
-                        environmentId,
-                        event.before()
-                );
-            }
-
-            case "r" -> {
-                if (event.after() == null) return;
-
-                productCdcApplier.applyInsert(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            default ->
-                    logUnknownOperation(
-                            event.operation(),
-                            "products"
-                    );
-        }
-    }
-
-    private void routeOrders(
-            Long environmentId,
-            CdcEvent event) {
-
-        switch (event.operation()) {
-
-            case "c" -> {
-                if (event.after() == null) return;
-
-                orderCdcApplier.applyInsert(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            case "u" -> {
-                if (event.after() == null) return;
-
-                orderCdcApplier.applyUpdate(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            case "d" -> {
-                if (event.before() == null) return;
-
-                orderCdcApplier.applyDelete(
-                        environmentId,
-                        event.before()
-                );
-            }
-
-            case "r" -> {
-                if (event.after() == null) return;
-
-                orderCdcApplier.applyInsert(
-                        environmentId,
-                        event.after()
-                );
-            }
-
-            default ->
-                    logUnknownOperation(
-                            event.operation(),
-                            "orders"
-                    );
-        }
-    }
-
-    private void logUnknownOperation(
-            String operation,
-            String tableName) {
-
-        System.out.println(
-                "Unknown CDC operation '"
-                        + operation
-                        + "' for table '"
-                        + tableName
-                        + "'"
-        );
     }
 }
