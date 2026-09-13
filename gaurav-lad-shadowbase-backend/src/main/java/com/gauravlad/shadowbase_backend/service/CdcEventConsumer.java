@@ -28,17 +28,11 @@ public class CdcEventConsumer {
     )
     public void consume(String message) {
 
+        System.out.println("========================================");
+        System.out.println("Received CDC event:");
+        System.out.println(message);
+
         try {
-
-            System.out.println(
-                    "========================================"
-            );
-
-            System.out.println(
-                    "Received CDC event:"
-            );
-
-            System.out.println(message);
 
             CdcEvent event =
                     objectMapper.readValue(
@@ -59,11 +53,10 @@ public class CdcEventConsumer {
                     event.source().schema();
 
             Long environmentId =
-                    environmentResolver
-                            .resolveTargetEnvironment(
-                                    sourceDatabase,
-                                    sourceSchema
-                            );
+                    environmentResolver.resolveTargetEnvironment(
+                            sourceDatabase,
+                            sourceSchema
+                    );
 
             System.out.println(
                     "Resolved target environment: "
@@ -79,17 +72,25 @@ public class CdcEventConsumer {
                     "CDC event successfully processed"
             );
 
-            System.out.println(
-                    "========================================"
-            );
+            System.out.println("========================================");
 
         } catch (Exception e) {
 
             System.err.println(
-                    "Failed to process CDC event"
+                    "CDC event processing failed"
             );
 
             e.printStackTrace();
+
+            /*
+             * IMPORTANT:
+             * Re-throw the exception so Spring Kafka's
+             * error handler can retry the message.
+             */
+            throw new RuntimeException(
+                    "Failed to process CDC event",
+                    e
+            );
         }
     }
 }
