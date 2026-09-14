@@ -83,9 +83,11 @@ public class CdcEventConsumer {
             e.printStackTrace();
 
             /*
-             * IMPORTANT:
-             * Re-throw the exception so Spring Kafka's
-             * error handler can retry the message.
+             * Re-throw the exception.
+             *
+             * DefaultErrorHandler will catch it,
+             * retry the event 3 times,
+             * and then send it to the DLT.
              */
             throw new RuntimeException(
                     "Failed to process CDC event",
